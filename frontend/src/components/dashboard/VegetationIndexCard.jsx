@@ -1,9 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Sprout, ChevronDown, RefreshCw, Loader2, Eye, EyeOff } from "lucide-react";
-import { MapContainer, Polygon, TileLayer, useMap } from "react-leaflet";
+import { useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import "leaflet-draw/dist/leaflet.draw.css";
 import { useAuth } from "../../contexts/authcontext/Authcontext";
 import { db } from "../../firebase/firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -86,6 +85,122 @@ const FitPolygon = ({ polygon, bounds }) => {
     }
   }, [map, polygon, bounds]);
   return null;
+};
+
+const ReferenceIndexDisplay = ({ indexType, legendConfig }) => {
+  const [imageError, setImageError] = useState(false);
+
+  if (imageError || !legendConfig) {
+    return (
+      <div className="space-y-6">
+        {/* Field area in Different zones */}
+        <div className="space-y-3">
+          <h5 className="text-sm font-semibold text-gray-800">Field area in Different zones</h5>
+          <div className="grid grid-cols-1 gap-2">
+            {legendConfig.bands.map((band) => (
+              <div key={band.label} className="flex items-center gap-3 p-2 bg-gray-50 rounded border border-gray-200">
+                <div
+                  className="w-12 h-8 rounded border border-gray-300"
+                  style={{ backgroundColor: band.color }}
+                />
+                <span className="text-xs font-medium text-gray-700">{indexType}: {band.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Analysis Scale */}
+        <div className="space-y-3">
+          <h5 className="text-sm font-semibold text-gray-800">Analysis Scale</h5>
+          
+          {/* Health Status Icons */}
+          <div className="flex items-center justify-between gap-2">
+            {(() => {
+              const getHealthStatuses = () => {
+                switch (indexType) {
+                  case "NDVI":
+                  case "SAVI":
+                    return [
+                      { label: "Overgrown", color: "#1a9641", icon: "🌿" },
+                      { label: "Healthy", color: "#a6d96a", icon: "✓" },
+                      { label: "Moderately Diseased", color: "#fdae61", icon: "⚠" },
+                      { label: "Highly Diseased", color: "#d7191c", icon: "✗" },
+                    ];
+                  case "EVI":
+                    return [
+                      { label: "Overgrown", color: "#1a9641", icon: "🌿" },
+                      { label: "Healthy", color: "#a6d96a", icon: "✓" },
+                      { label: "Moderately Diseased", color: "#fdae61", icon: "⚠" },
+                      { label: "Highly Diseased", color: "#d7191c", icon: "✗" },
+                    ];
+                  case "NDRE":
+                    return [
+                      { label: "Early", color: "#1b8a3c", icon: "🌱" },
+                      { label: "Vegetative", color: "#b2ff59", icon: "🍃" },
+                      { label: "Flowering", color: "#c49a00", icon: "🌸" },
+                      { label: "Maturity", color: "#bdbdbd", icon: "🌾" },
+                    ];
+                  default:
+                    return [];
+                }
+              };
+              return getHealthStatuses().map((status, idx) => {
+                const band = legendConfig.bands[idx];
+                return (
+                  <div key={status.label} className="flex flex-col items-center gap-1 flex-1">
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-lg border-2 border-gray-300"
+                      style={{ backgroundColor: status.color, color: 'white' }}
+                    >
+                      {status.icon}
+                    </div>
+                    <span className="text-[10px] text-gray-600 text-center leading-tight">{status.label}</span>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+
+          {/* Scale Bar */}
+          <div className="space-y-1">
+            <div className="h-4 w-full rounded overflow-hidden border border-gray-300 flex">
+              {legendConfig.scaleStops.slice(0, -1).map((stop, idx) => {
+                const next = legendConfig.scaleStops[idx + 1];
+                const width = `${Math.max((next.at - stop.at) * 100, 0)}%`;
+                return (
+                  <div
+                    key={`${stop.at}-${next.at}`}
+                    style={{ width, backgroundColor: stop.color }}
+                  />
+                );
+              })}
+            </div>
+            <div className="flex justify-between text-[10px] text-gray-500">
+              <span>0</span>
+              {legendConfig.bands.map((band, idx) => {
+                const parts = band.label.split(' to ');
+                if (parts.length === 2) {
+                  return <span key={idx}>{parts[1]}</span>;
+                } else if (band.label.includes('>')) {
+                  return <span key={idx}>1</span>;
+                }
+                return null;
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={`/reference-indices/${indexType.toLowerCase()}-reference.png`}
+      alt={`${indexType} Reference Index`}
+      className="w-full h-auto rounded-lg border border-gray-200"
+      onError={() => setImageError(true)}
+    />
+  );
 };
 
 const VegetationIndexCard = ({ field, onHeatmapReady }) => {
@@ -219,6 +334,86 @@ const VegetationIndexCard = ({ field, onHeatmapReady }) => {
   const mapCenter = centroid || (field?.lat && field?.lng ? { lat: field.lat, lng: field.lng } : DEFAULT_CENTER);
   const overlayBounds = ndviData?.bounds || polygonBounds;
 
+  const legendConfig = useMemo(() => {
+    switch (indexType) {
+      case "NDVI":
+        return {
+          title: "NDVI Reference",
+          subtitle: "Health zones",
+          bands: [
+            { color: "#d7191c", label: "-1 to 0.15" },
+            { color: "#fdae61", label: "0.15 to 0.25" },
+            { color: "#a6d96a", label: "0.25 to 0.40" },
+            { color: "#1a9641", label: "> 0.40" },
+          ],
+          scaleStops: [
+            { color: "#1a9641", at: 0 },
+            { color: "#a6d96a", at: 0.15 },
+            { color: "#fdae61", at: 0.25 },
+            { color: "#d7191c", at: 0.4 },
+            { color: "#d7191c", at: 1 },
+          ],
+        };
+      case "SAVI":
+        return {
+          title: "SAVI Reference",
+          subtitle: "Soil-adjusted zones",
+          bands: [
+            { color: "#d7191c", label: "-1 to 0.15" },
+            { color: "#fdae61", label: "0.15 to 0.25" },
+            { color: "#a6d96a", label: "0.25 to 0.40" },
+            { color: "#1a9641", label: "> 0.40" },
+          ],
+          scaleStops: [
+            { color: "#1a9641", at: 0 },
+            { color: "#a6d96a", at: 0.15 },
+            { color: "#fdae61", at: 0.25 },
+            { color: "#d7191c", at: 0.4 },
+            { color: "#d7191c", at: 1 },
+          ],
+        };
+      case "EVI":
+        return {
+          title: "EVI Reference",
+          subtitle: "Dense canopy zones",
+          bands: [
+            { color: "#d7191c", label: "-1 to 0.20" },
+            { color: "#fdae61", label: "0.20 to 0.35" },
+            { color: "#a6d96a", label: "0.35 to 0.50" },
+            { color: "#1a9641", label: "> 0.50" },
+          ],
+          scaleStops: [
+            { color: "#1a9641", at: 0 },
+            { color: "#a6d96a", at: 0.2 },
+            { color: "#fdae61", at: 0.35 },
+            { color: "#d7191c", at: 0.5 },
+            { color: "#d7191c", at: 1 },
+          ],
+        };
+      case "NDRE":
+        return {
+          title: "NDRE Reference",
+          subtitle: "Growth stages",
+          bands: [
+            { color: "#bdbdbd", label: "-1 to 0.02" },
+            { color: "#b2ff59", label: "0.02 to 0.12" },
+            { color: "#1b8a3c", label: "0.12 to 0.22" },
+            { color: "#c49a00", label: "> 0.22" },
+          ],
+          scaleStops: [
+            { color: "#bdbdbd", at: 0 },
+            { color: "#b2ff59", at: 0.02 },
+            { color: "#1b8a3c", at: 0.12 },
+            { color: "#c49a00", at: 0.22 },
+            { color: "#c49a00", at: 1 },
+          ],
+        };
+      default:
+        return null;
+    }
+  }, [indexType]);
+
+
   // Keep parent overlay in sync when opacity/visibility change and we already have data
   useEffect(() => {
     if (!heatmapUrl || !overlayBounds || !polygonCoords.length) return;
@@ -277,104 +472,85 @@ const VegetationIndexCard = ({ field, onHeatmapReady }) => {
         </div>
       </div>
 
-      {/* Visualization Area */}
-      <div className="p-4 flex-1 flex flex-col">
-        <div className="flex-1 rounded-xl bg-gray-900 border border-gray-200 shadow-inner flex flex-col overflow-hidden relative min-h-[450px]">
-          
-          {loading ? (
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 className="h-8 w-8 text-green-400 animate-spin" />
-              <p className="text-sm text-gray-300">Running AI Model ({indexType})...</p>
-            </div>
-          ) : error ? (
-            <div className="text-center p-4">
-              <p className="text-red-400 text-sm mb-2">{error}</p>
-              <button onClick={handleRefresh} className="text-xs bg-red-900/50 text-red-200 px-3 py-1 rounded border border-red-700">Retry</button>
-            </div>
-          ) : ndviData && heatmapUrl ? (
-            <>
-              <div className="relative h-full w-full">
-                <MapContainer
-                  center={mapCenter}
-                  zoom={17}
-                  className="h-full w-full"
-                  style={{ minHeight: 450 }}
-                  scrollWheelZoom
-                >
-                  <TileLayer
-                    url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                    attribution="Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community"
-                  />
-                  <FitPolygon polygon={polygonCoords} bounds={overlayBounds} />
-                  {polygonCoords.length > 0 && (
-                    <Polygon
-                      positions={polygonCoords}
-                      pathOptions={{
-                        color: "#10b981",
-                        weight: 2,
-                        fillColor: "#10b981",
-                        fillOpacity: 0.12,
-                      }}
-                    />
-                  )}
-
-                  {overlayBounds && heatmapUrl && (
-                    <HeatmapImageOverlay
-                      imageUrl={heatmapUrl}
-                      bounds={overlayBounds}
-                      polygon={polygonCoords}
-                      opacity={heatmapOpacity}
-                      visible={heatmapVisible}
-                    />
-                  )}
-                </MapContainer>
-
-                <div className="absolute left-3 bottom-3 z-[500] bg-black/70 text-white rounded-lg border border-white/10 p-3 space-y-2 shadow-lg">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-xs uppercase tracking-wide text-gray-200">Opacity</span>
-                    <span className="text-xs font-semibold text-green-300">{Math.round(heatmapOpacity * 100)}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={heatmapOpacity}
-                    onChange={(e) => setHeatmapOpacity(parseFloat(e.target.value))}
-                    className="w-40 accent-green-400"
-                  />
-                  {!heatmapVisible && (
-                    <p className="text-[11px] text-amber-200">Heatmap hidden</p>
-                  )}
-                </div>
+      {/* Reference Index Images Area */}
+      <div className="p-4 flex-1 flex flex-col overflow-y-auto">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center gap-3 h-full">
+            <Loader2 className="h-8 w-8 text-green-400 animate-spin" />
+            <p className="text-sm text-gray-600">Running AI Model ({indexType})...</p>
+          </div>
+        ) : error ? (
+          <div className="text-center p-4">
+            <p className="text-red-600 text-sm mb-2">{error}</p>
+            <button onClick={handleRefresh} className="text-xs bg-red-100 text-red-700 px-3 py-1 rounded border border-red-300 hover:bg-red-200">Retry</button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Reference Index Image */}
+            <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+              <div className="bg-gradient-to-r from-green-50 to-green-100 px-4 py-3 border-b border-gray-200">
+                <h4 className="text-sm font-semibold text-gray-800">{indexType} Reference Index</h4>
+                <p className="text-xs text-gray-600 mt-0.5">Field area zones and analysis scale</p>
               </div>
+              <div className="p-4">
+                <ReferenceIndexDisplay indexType={indexType} legendConfig={legendConfig} />
+              </div>
+            </div>
 
-              <div className="absolute bottom-0 left-0 right-0 bg-black/70 backdrop-blur-md p-4 text-white border-t border-white/10">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="font-bold text-sm text-green-400">{indexType} Analysis</span>
-                  <span className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded text-white border border-white/10">
-                    Dominant: {dominantLabel}
-                  </span>
-                </div>
-                
-                {/* Stats Grid */}
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                  {ndviData.statistics && Object.entries(ndviData.statistics).map(([key, val]) => (
-                    <div key={key} className="flex justify-between text-xs">
-                      <span className="text-gray-300">{key}</span>
-                      <span className="font-mono text-green-300">{val}%</span>
+            {/* Statistics if available */}
+            {ndviData && ndviData.statistics && (
+              <div className="rounded-lg border border-gray-200 bg-white shadow-sm p-4">
+                <h4 className="text-sm font-semibold text-gray-800 mb-3">{indexType} Statistics</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  {Object.entries(ndviData.statistics).map(([key, val]) => (
+                    <div key={key} className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                      <span className="text-xs text-gray-700">{key}</span>
+                      <span className="text-xs font-semibold text-green-600">{val}%</span>
                     </div>
                   ))}
                 </div>
+                {dominantLabel && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <p className="text-xs text-gray-600">
+                      <span className="font-semibold">Dominant Condition:</span> {dominantLabel}
+                    </p>
+                  </div>
+                )}
               </div>
-            </>
-          ) : (
-             <div className="text-center text-gray-500">
-                <p>No Data Available</p>
-                <p className="text-xs mt-1">Select an index to analyze</p>
-             </div>
-          )}
-        </div>
+            )}
+
+            {/* Opacity Control */}
+            {ndviData && heatmapUrl && (
+              <div className="rounded-lg border border-gray-200 bg-white shadow-sm p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-gray-700">Heatmap Opacity</span>
+                  <span className="text-xs font-semibold text-green-600">{Math.round(heatmapOpacity * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={heatmapOpacity}
+                  onChange={(e) => setHeatmapOpacity(parseFloat(e.target.value))}
+                  className="w-full accent-green-500"
+                />
+                <div className="flex items-center gap-2 mt-2">
+                  <button
+                    onClick={() => setHeatmapVisible((prev) => !prev)}
+                    className={`text-xs px-3 py-1 rounded border transition-colors ${
+                      heatmapVisible
+                        ? 'bg-green-100 text-green-700 border-green-300'
+                        : 'bg-gray-100 text-gray-600 border-gray-300'
+                    }`}
+                  >
+                    {heatmapVisible ? '✓ Visible' : 'Hidden'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
