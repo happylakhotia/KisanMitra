@@ -9,20 +9,11 @@ const FieldDetailsDrawer = ({ open, onClose, coordinates, centroid }) => {
   const [fieldName, setFieldName] = useState("");
   const [sowingDate, setSowingDate] = useState("");
   const [loading, setLoading] = useState(false);
-
-  // Debug: Log when component mounts
-  React.useEffect(() => {
-    console.log("🎯 FieldDetailsDrawer mounted");
-    console.log("DB object:", db);
-    console.log("Current user:", currentUser);
-  }, [currentUser]);
+  
+  // 🔥 NEW: Radius State
+  const [radius, setRadius] = useState("");
 
   const handleSave = async () => {
-    console.log("🔍 handleSave called");
-    console.log("currentUser:", currentUser);
-    console.log("centroid:", centroid);
-    console.log("coordinates:", coordinates);
-
     if (!currentUser) {
       alert("User not authenticated!");
       return;
@@ -41,10 +32,6 @@ const FieldDetailsDrawer = ({ open, onClose, coordinates, centroid }) => {
     setLoading(true);
 
     try {
-      console.log("🔥 Attempting to save to Firestore...");
-      console.log("User ID:", currentUser.uid);
-      
-      // Save to Firebase Firestore
       const fieldRef = doc(db, "fields", currentUser.uid);
       
       const fieldData = {
@@ -53,33 +40,32 @@ const FieldDetailsDrawer = ({ open, onClose, coordinates, centroid }) => {
         sowingDate,
         lat: centroid.lat,
         lng: centroid.lng,
+        // 🔥 NEW: Save Radius (Default to 1.0 if empty)
+        radius: radius ? parseFloat(radius) : 1.0,
         coordinates: coordinates || [],
         updatedAt: new Date().toISOString(),
         userId: currentUser.uid
       };
       
-      console.log("📝 Field data to save:", fieldData);
-      
       await setDoc(fieldRef, fieldData, { merge: true });
 
-      console.log("✅ Field details saved successfully!");
       alert("Field details saved successfully!");
       
       // Reset form
       setCropName("");
       setFieldName("");
       setSowingDate("");
+      setRadius(""); // Reset radius
       
       onClose();
     } catch (error) {
       console.error("❌ Error saving field details:", error);
-      console.error("Error code:", error.code);
-      console.error("Error message:", error.message);
       alert(`Failed to save field details: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
+
   return (
     <div
       className={`fixed top-0 right-0 h-full w-96 bg-white shadow-xl border-l border-gray-200 z-50 transform transition-transform duration-300 ${
@@ -132,15 +118,31 @@ const FieldDetailsDrawer = ({ open, onClose, coordinates, centroid }) => {
           />
         </div>
 
+        {/* 🔥 NEW: Radius Input */}
+        <div>
+          <label className="block text-sm font-medium mb-1">
+            Scan Radius (km) <span className="text-gray-400 font-normal">(Optional)</span>
+          </label>
+          <input
+            type="number"
+            step="0.1"
+            min="0.1"
+            max="5"
+            placeholder="Default: 1.0 km"
+            value={radius}
+            onChange={(e) => setRadius(e.target.value)}
+            className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-green-600"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Distance from center to scan (e.g. 0.5 for small fields)
+          </p>
+        </div>
+
         {/* Upload Images */}
         <div>
           <label className="block text-sm font-medium mb-1">Upload Field & Crop Images</label>
           <div className="border-2 border-dashed rounded-md p-5 text-center cursor-pointer hover:border-green-600 transition">
-            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-            </svg>
-            <p className="text-sm text-gray-600 mt-2">Drop images here or click to browse</p>
+            <p className="text-sm text-gray-600">Drop images here or click to browse</p>
           </div>
         </div>
 

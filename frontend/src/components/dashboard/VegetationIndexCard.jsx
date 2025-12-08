@@ -11,10 +11,10 @@ const VegetationIndexCard = () => {
   const [error, setError] = useState(null);
   const [coordinates, setCoordinates] = useState(null);
   
-  // 🔥 Naya State: Default NDVI rahega
+  // Default Index Type
   const [indexType, setIndexType] = useState("NDVI");
 
-  // 1. Fetch Field Coordinates
+  // 1. Fetch Field Coordinates & Radius
   useEffect(() => {
     const fetchFieldData = async () => {
       if (!currentUser) return;
@@ -25,7 +25,12 @@ const VegetationIndexCard = () => {
         if (fieldSnap.exists()) {
           const data = fieldSnap.data();
           if (data.lat && data.lng) {
-            setCoordinates({ lat: data.lat, lng: data.lng });
+            // 🔥 NEW: Set Radius from DB (default 1.0)
+            setCoordinates({ 
+                lat: data.lat, 
+                lng: data.lng,
+                radius: data.radius || 1.0 
+            });
           }
         }
       } catch (err) {
@@ -35,26 +40,32 @@ const VegetationIndexCard = () => {
     fetchFieldData();
   }, [currentUser]);
 
-  // 2. Jb Coordinates mil jayein YA IndexType change ho, tab API call karo
+  // 2. Trigger API when coords or indexType changes
   useEffect(() => {
     if (coordinates) {
-      fetchAnalysis(coordinates.lat, coordinates.lng, indexType);
+      // 🔥 NEW: Pass radius to function
+      fetchAnalysis(coordinates.lat, coordinates.lng, indexType, coordinates.radius);
     }
-  }, [coordinates, indexType]); // <--- indexType change hone par auto-refresh hoga
+  }, [coordinates, indexType]);
 
-  const fetchAnalysis = async (lat, lng, type) => {
+  const fetchAnalysis = async (lat, lng, type, rad) => {
     setLoading(true);
     setError(null);
-    setNdviData(null); // Purana data hatao loading ke time
+    setNdviData(null);
     
     try {
-      console.log(`🚀 Requesting ${type} Analysis...`);
+      console.log(`🚀 Requesting ${type} Analysis (Radius: ${rad}km)...`);
       
       const response = await fetch("http://localhost:5000/api/analyze-ndvi", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // 🔥 Ab hum 'indexType' bhi bhej rahe hain
-        body: JSON.stringify({ lat, lng, indexType: type }),
+        // 🔥 NEW: Include radius in body
+        body: JSON.stringify({ 
+            lat, 
+            lng, 
+            indexType: type,
+            radius: rad 
+        }),
       });
 
       const data = await response.json();
@@ -74,7 +85,8 @@ const VegetationIndexCard = () => {
 
   const handleRefresh = () => {
     if (coordinates) {
-      fetchAnalysis(coordinates.lat, coordinates.lng, indexType);
+      // 🔥 NEW: Include radius in refresh
+      fetchAnalysis(coordinates.lat, coordinates.lng, indexType, coordinates.radius);
     }
   };
 
@@ -99,7 +111,6 @@ const VegetationIndexCard = () => {
           )}
           
           <div className="relative">
-            {/* 🔥 Dropdown ab 'indexType' state ko control karega */}
             <select
               value={indexType}
               onChange={(e) => setIndexType(e.target.value)}
@@ -125,6 +136,7 @@ const VegetationIndexCard = () => {
             <div className="flex flex-col items-center gap-3">
               <Loader2 className="h-8 w-8 text-green-600 animate-spin" />
               <p className="text-sm text-gray-500">Processing {indexType} Data...</p>
+              {coordinates && <p className="text-xs text-gray-400">Radius: {coordinates.radius} km</p>}
             </div>
           ) : error ? (
             <div className="text-center p-4">
