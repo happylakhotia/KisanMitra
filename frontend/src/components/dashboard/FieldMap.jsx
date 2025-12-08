@@ -10,6 +10,7 @@ const FieldMap = () => {
   const { currentUser } = useAuth();
   const mapRef = useRef(null);
   const [savedCoordinates, setSavedCoordinates] = useState(null);
+  const [userLocation, setUserLocation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -17,41 +18,58 @@ const FieldMap = () => {
     if (!currentUser) {
       setLoading(false);
       setSavedCoordinates(null);
+      setUserLocation(null);
       return;
     }
 
-    const fetchFieldData = async () => {
+    const fetchData = async () => {
       setLoading(true);
       setError(null);
       try {
+        // Fetch field data
         const fieldRef = doc(db, "fields", currentUser.uid);
-        const snap = await getDoc(fieldRef);
-        if (snap.exists()) {
-          const data = snap.data();
+        const fieldSnap = await getDoc(fieldRef);
+        if (fieldSnap.exists()) {
+          const data = fieldSnap.data();
           setSavedCoordinates(Array.isArray(data.coordinates) ? data.coordinates : null);
         } else {
           setSavedCoordinates(null);
         }
+
+        // Fetch user location
+        const userRef = doc(db, "users", currentUser.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          if (userData.location) {
+            setUserLocation({
+              lat: userData.location.latitude,
+              lng: userData.location.longitude
+            });
+          }
+        }
       } catch (err) {
-        console.error("Error loading field data:", err);
-        setError("Failed to load field area. Please try again later.");
+        console.error("Error loading data:", err);
+        setError("Failed to load data. Please try again later.");
         setSavedCoordinates(null);
+        setUserLocation(null);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchFieldData();
+    fetchData();
   }, [currentUser]);
 
   useEffect(() => {
     if (!mapRef.current) return;
 
     loadGoogleMaps(() => {
-      const center = computeCentroid(savedCoordinates) || DEFAULT_CENTER;
+      // Use user location as center if available, otherwise use field centroid or default
+      const center = computeCentroid(savedCoordinates) || userLocation || DEFAULT_CENTER;
       const map = new window.google.maps.Map(mapRef.current, {
         center,
-        zoom: savedCoordinates?.length ? 17 : 13,
+        zoom: savedCoordinates?.length ? 17 : (userLocation ? 15 : 13),
         mapTypeId: "satellite",
       });
 
@@ -75,9 +93,24 @@ const FieldMap = () => {
             fontSize: "16px",
           },
         });
+      } else if (userLocation) {
+        // Show user location marker when no field is saved
+        new window.google.maps.Marker({
+          position: userLocation,
+          map,
+          title: "Your Location",
+          icon: {
+            path: window.google.maps.SymbolPath.CIRCLE,
+            scale: 8,
+            fillColor: "#4285F4",
+            fillOpacity: 1,
+            strokeColor: "#ffffff",
+            strokeWeight: 2,
+          },
+        });
       }
     });
-  }, [savedCoordinates]);
+  }, [savedCoordinates, userLocation]);
 
   function computeCentroid(coords) {
     if (!coords?.length) return null;
@@ -110,7 +143,7 @@ const FieldMap = () => {
 
       <div className="p-4 space-y-3">
         {loading && (
-          <p className="text-sm text-gray-500">Loading your saved field...</p>
+          <p className="text-sm text-gray-500">Loading your saved field and location...</p>
         )}
         {error && (
           <p className="text-sm text-red-600">{error}</p>
@@ -120,10 +153,12 @@ const FieldMap = () => {
           {!savedCoordinates?.length && !loading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-4">
               <p className="text-gray-700 font-medium text-lg">
-                Draw your field in Farm Selection to see it here.
+                {userLocation ? "Draw your field in Farm Selection to see it here." : "Draw your field in Farm Selection to see it here."}
               </p>
               <p className="text-sm text-gray-500">
-                We will show the exact area you drew on the Farm Selection map.
+                {userLocation 
+                  ? "We will show the exact area you drew on the Farm Selection map. Your current location is marked."
+                  : "We will show the exact area you drew on the Farm Selection map."}
               </p>
             </div>
           )}

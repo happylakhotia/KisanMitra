@@ -9,6 +9,7 @@ export class User {
     this.acres = data.acres || '';
     this.phone = data.phone || '';
     this.role = data.role || 'user';
+    this.location = data.location || null; // { latitude, longitude, timestamp }
     this.createdAt = data.createdAt || new Date();
     this.updatedAt = data.updatedAt || new Date();
   }
@@ -23,6 +24,7 @@ export class User {
       acres: this.acres,
       phone: this.phone,
       role: this.role,
+      location: this.location,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };

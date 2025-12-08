@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { doSignInWithEmailAndPassword, doSignInWithGoogle } from '../../../firebase/auth'
 import { useAuth } from '../../../contexts/authcontext/Authcontext'
+import { doc, setDoc, getFirestore } from 'firebase/firestore'
+import { getAuth } from 'firebase/auth'
 import './Login.css'
 
 const Login = () => {
@@ -12,6 +14,47 @@ const Login = () => {
     const [password, setPassword] = useState('')
     const [isSigningIn, setIsSigningIn] = useState(false)
     const [errorMessage, setErrorMessage] = useState('')
+    const [locationRequested, setLocationRequested] = useState(false)
+
+    const requestLocationPermission = async () => {
+        return new Promise((resolve, reject) => {
+            if (!navigator.geolocation) {
+                reject(new Error('Geolocation is not supported by this browser'))
+                return
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    const { latitude, longitude } = position.coords
+                    try {
+                        const db = getFirestore()
+                        const auth = getAuth()
+                        const userRef = doc(db, 'users', auth.currentUser.uid)
+                        await setDoc(userRef, {
+                            location: {
+                                latitude,
+                                longitude,
+                                timestamp: new Date().toISOString()
+                            }
+                        }, { merge: true })
+                        resolve({ latitude, longitude })
+                    } catch (error) {
+                        console.error('Error saving location:', error)
+                        reject(error)
+                    }
+                },
+                (error) => {
+                    console.error('Location permission denied:', error)
+                    reject(error)
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            )
+        })
+    }
 
     const handleSubmit = async (e) => {
         e.preventDefault()
@@ -19,6 +62,18 @@ const Login = () => {
             setIsSigningIn(true)
             try {
                 await doSignInWithEmailAndPassword(email, password)
+                
+                // Request location permission after successful login
+                setTimeout(async () => {
+                    try {
+                        await requestLocationPermission()
+                        setLocationRequested(true)
+                    } catch (error) {
+                        console.log('Location permission denied or failed:', error)
+                        // Continue without location - don't block login
+                    }
+                }, 1000)
+                
                 // Navigation handled by Navigate component below
             } catch (error) {
                 setErrorMessage(error.message)
@@ -31,7 +86,18 @@ const Login = () => {
         e.preventDefault()
         if (!isSigningIn) {
             setIsSigningIn(true)
-            doSignInWithGoogle().catch((error) => {
+            doSignInWithGoogle().then(async () => {
+                // Request location permission after successful Google login
+                setTimeout(async () => {
+                    try {
+                        await requestLocationPermission()
+                        setLocationRequested(true)
+                    } catch (error) {
+                        console.log('Location permission denied or failed:', error)
+                        // Continue without location - don't block login
+                    }
+                }, 1000)
+            }).catch((error) => {
                 setErrorMessage(error.message)
                 setIsSigningIn(false)
             })
@@ -90,6 +156,20 @@ const Login = () => {
                     {errorMessage && (
                         <div className="error-message">
                             {errorMessage}
+                        </div>
+                    )}
+
+                    {!locationRequested && userLoggedIn && (
+                        <div className="location-prompt">
+                            <p className="location-message">Allow location access for better map experience</p>
+                            <button
+                                type="button"
+                                className="btn location-btn"
+                                onClick={requestLocationPermission}
+                                disabled={isSigningIn}
+                            >
+                                Enable Location
+                            </button>
                         </div>
                     )}
 

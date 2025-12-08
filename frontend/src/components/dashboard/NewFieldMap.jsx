@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import FieldDetailsDrawer from "./FieldDetailsDrawer";
 import { useAuth } from "../../contexts/authcontext/Authcontext";
+import { db } from "../../firebase/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 const NewFieldMap = ({ showDrawer, setShowDrawer }) => {
   const mapRef = useRef(null);
@@ -8,21 +10,63 @@ const NewFieldMap = ({ showDrawer, setShowDrawer }) => {
   const { currentUser } = useAuth();
   const [fieldCoordinates, setFieldCoordinates] = useState(null);
   const [centroid, setCentroid] = useState(null);
+  const [userLocation, setUserLocation] = useState(null);
+
+  // Fetch user location
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const fetchUserLocation = async () => {
+      try {
+        const userRef = doc(db, "users", currentUser.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          if (userData.location) {
+            setUserLocation({
+              lat: userData.location.latitude,
+              lng: userData.location.longitude
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching user location:", error);
+      }
+    };
+
+    fetchUserLocation();
+  }, [currentUser]);
 
   // -----------------------------------------
   // Load Google Maps and Initialize the Map
   // -----------------------------------------
   useEffect(() => {
-    loadGoogleMaps(initMap);
-
-    function initMap() {
-      const startLoc = { lat: 17.3266, lng: 78.1695 };
+    function initMap(location) {
+      // Use provided location or default
+      const startLoc = location || { lat: 17.3266, lng: 78.1695 };
 
       const map = new window.google.maps.Map(mapRef.current, {
         center: startLoc,
-        zoom: 17,
+        zoom: location ? 17 : 13,
         mapTypeId: "satellite",
       });
+
+      // Show user location marker if available
+      if (location) {
+        new window.google.maps.Marker({
+          position: location,
+          map,
+          title: "Your Location",
+          icon: {
+            path: window.google.maps.SymbolPath.CIRCLE,
+            scale: 8,
+            fillColor: "#4285F4",
+            fillOpacity: 1,
+            strokeColor: "#ffffff",
+            strokeWeight: 2,
+          },
+        });
+      }
 
       // ---- SEARCH BOX ----
       const searchBox = new window.google.maps.places.SearchBox(searchRef.current);
@@ -75,7 +119,7 @@ const NewFieldMap = ({ showDrawer, setShowDrawer }) => {
             polyline.setMap(null);
 
             // Make polygon
-            const polygon = new window.google.maps.Polygon({
+            new window.google.maps.Polygon({
               paths: coords,
               strokeColor: "#FFFFFF",
               strokeWeight: 2,
@@ -106,7 +150,9 @@ const NewFieldMap = ({ showDrawer, setShowDrawer }) => {
         }
       );
     }
-  }, []);
+
+    loadGoogleMaps(() => initMap(userLocation));
+  }, [userLocation]);
 
   // -----------------------------------------
   // Helpers
