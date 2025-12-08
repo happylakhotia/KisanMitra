@@ -71,6 +71,7 @@ const FieldMap = ({ field }) => {
     fetchData();
   }, [currentUser, field]);
 
+  // Initialize Google Map
   useEffect(() => {
     if (!mapRef.current) return;
 
@@ -89,7 +90,7 @@ const FieldMap = ({ field }) => {
           strokeColor: "#00FF00",
           strokeWeight: 2,
           fillColor: "#00FF00",
-          fillOpacity: 0.4,
+          fillOpacity: 0.2,
           map,
         });
 
@@ -98,7 +99,7 @@ const FieldMap = ({ field }) => {
           map,
           icon: { path: window.google.maps.SymbolPath.CIRCLE, scale: 0 },
           label: {
-            text: "Saved Field",
+            text: field?.name || "Saved Field",
             color: "white",
             fontSize: "16px",
           },
@@ -120,7 +121,7 @@ const FieldMap = ({ field }) => {
         });
       }
     });
-  }, [savedCoordinates, userLocation]);
+  }, [savedCoordinates, userLocation, field]);
 
   function computeCentroid(coords) {
     if (!coords?.length) return null;
@@ -146,9 +147,13 @@ const FieldMap = ({ field }) => {
 
   return (
     <div className="rounded-2xl border border-gray-200 shadow-md bg-white/70 backdrop-blur-xl">
-      <div className="p-4 border-b border-gray-200 flex items-center gap-2 bg-white/50 backdrop-blur-md rounded-t-2xl">
-        <MapPin className="h-5 w-5 text-green-600" />
-        <h2 className="text-lg font-semibold text-gray-700">Field Map</h2>
+      <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-white/50 backdrop-blur-md rounded-t-2xl">
+        <div className="flex items-center gap-2">
+          <MapPin className="h-5 w-5 text-green-600" />
+          <h2 className="text-lg font-semibold text-gray-700">
+            Map of {field?.name || "Field"}
+          </h2>
+        </div>
       </div>
 
       <div className="p-4 space-y-3">
@@ -161,7 +166,7 @@ const FieldMap = ({ field }) => {
 
         <div className="relative h-[500px] rounded-2xl border border-gray-200 shadow-inner bg-gray-100 overflow-hidden">
           {!savedCoordinates?.length && !loading && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-4">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-4 z-10 bg-white/90">
               <p className="text-gray-700 font-medium text-lg">
                 {t("field_map_no_field_title")}
               </p>
@@ -172,6 +177,7 @@ const FieldMap = ({ field }) => {
               </p>
             </div>
           )}
+
           <div ref={mapRef} className="w-full h-full"></div>
         </div>
       </div>

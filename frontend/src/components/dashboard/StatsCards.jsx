@@ -2,14 +2,14 @@ import React from "react";
 import { Leaf, Sprout, Trees, AlertTriangle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-const StatsCards = ({ field }) => {
+const StatsCards = ({ field, totalFields = 1 }) => {
   const { t } = useTranslation();
 
   const stats = [
     {
       titleKey: "stats_active_fields",
       subtitleKey: "stats_active_fields_sub",
-      value: "2",
+      value: totalFields,
       icon: Trees,
       bg: "bg-green-50",
       border: "border-green-200",

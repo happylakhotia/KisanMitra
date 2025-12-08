@@ -224,7 +224,7 @@ const DashboardLayout = ({ currentUser, onLogout }) => {
           )}
 
           {/* PASS SELECTED FIELD */}
-          {selectedField && <StatsCards field={selectedField} />}
+          {selectedField && <StatsCards field={selectedField} totalFields={fields.length} />}
 
           {/* Larger map + larger vegetation card */}
           {selectedField && (
@@ -237,8 +237,8 @@ const DashboardLayout = ({ currentUser, onLogout }) => {
                 </div>
               </div>
 
-              {/* BIGGER VEGETATION INDEX */}
-              <div className="h-[420px]">
+              {/* BIGGER VEGETATION INDEX - Matched to Field Map height */}
+              <div className="h-[600px]">
                 <VegetationIndexCard field={selectedField} />
               </div>
 
