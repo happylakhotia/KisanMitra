@@ -6,7 +6,14 @@ import {
   Bell,
   Trash2,
   Clock11,
-  RefreshCw
+  RefreshCw,
+  Droplets,
+  Activity,
+  Bug,
+  Leaf,
+  TrendingUp,
+  TrendingDown,
+  Minus
 } from "lucide-react";
 
 import { useAuth } from "../contexts/authcontext/Authcontext";
@@ -99,7 +106,7 @@ function Tabs({ value, onValueChange, children }) {
 
 function TabsList({ value, onValueChange, children }) {
   return (
-    <div className="inline-flex h-10 w-full max-w-md items-center gap-1 rounded-md bg-muted p-1 text-muted-foreground">
+    <div className="inline-flex items-center gap-2">
       {React.Children.map(children, (child) => React.cloneElement(child, { selectedValue: value, onValueChange }))}
     </div>
   );
@@ -111,8 +118,10 @@ function TabsTrigger({ value: triggerValue, selectedValue, onValueChange, childr
     <button
       onClick={() => onValueChange?.(triggerValue)}
       className={cn(
-        "inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-sm transition-all",
-        isActive ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:bg-muted/60"
+        "inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-all",
+        isActive 
+          ? "bg-gray-100 text-gray-900 shadow-sm" 
+          : "bg-white text-gray-700 hover:bg-gray-50"
       )}
     >
       {children}
@@ -124,7 +133,7 @@ function TabsTrigger({ value: triggerValue, selectedValue, onValueChange, childr
    PRIORITY CONFIG
 ------------------------------------------------------- */
 const priorityConfig = {
-  high: { badgeVariant: "destructive", icon: AlertCircle, iconClass: "text-destructive" },
+  high: { badgeVariant: "destructive", icon: AlertCircle, iconClass: "text-green-700" },
   medium: { badgeVariant: "default", icon: Clock, iconClass: "text-yellow-600" },
   low: { badgeVariant: "secondary", icon: CheckCircle2, iconClass: "text-green-600" },
 };
@@ -153,6 +162,7 @@ export default function Alerts() {
   const [fields, setFields] = useState([]);
   const [selectedField, setSelectedField] = useState(null);
   const [fieldsLoading, setFieldsLoading] = useState(true);
+  const [lastLoadedFieldId, setLastLoadedFieldId] = useState(null);
 
   const handleLogout = async () => {
     try {
@@ -233,6 +243,43 @@ export default function Alerts() {
   }, [currentUser, userType]);
 
   /* ----------------------------------------------------
+     CACHE UTILITIES
+  ---------------------------------------------------- */
+  const getCacheKey = (fieldId) => `alerts_cache_${currentUser?.uid}_${fieldId}`;
+  
+  const saveAlertsToCache = (fieldId, alertsData) => {
+    if (!fieldId || !currentUser) return;
+    try {
+      const cacheData = {
+        alerts: alertsData,
+        timestamp: Date.now(),
+        fieldId: fieldId,
+      };
+      localStorage.setItem(getCacheKey(fieldId), JSON.stringify(cacheData));
+    } catch (err) {
+      console.error("Error saving alerts to cache:", err);
+    }
+  };
+
+  const loadAlertsFromCache = (fieldId) => {
+    if (!fieldId || !currentUser) return null;
+    try {
+      const cached = localStorage.getItem(getCacheKey(fieldId));
+      if (!cached) return null;
+      
+      const cacheData = JSON.parse(cached);
+      // Check if cache is for the same field
+      if (cacheData.fieldId === fieldId) {
+        return cacheData.alerts;
+      }
+      return null;
+    } catch (err) {
+      console.error("Error loading alerts from cache:", err);
+      return null;
+    }
+  };
+
+  /* ----------------------------------------------------
      2. LSTM API + convert into alert UI format (FULL)
   ---------------------------------------------------- */
   const API_URL = "https://itvi-1234-lstmnew.hf.space/predict";
@@ -286,7 +333,13 @@ export default function Alerts() {
     return {
       id: `${key}_full`,
       title,
-      description: `NDVI = ${ndvi}\nMoisture = ${sm}\nDisease Risk = ${disease}%\nPest Risk = ${pest}%`,
+      metrics: {
+        ndvi: ndvi,
+        moisture: sm,
+        diseaseRisk: Number(disease) || 0,
+        pestRisk: Number(pest) || 0,
+        stressIndex: Number(stressIndex) || 0,
+      },
       priority,
       actions: getFullAdvisory(advisory),
       timestamp: title,
@@ -355,6 +408,12 @@ export default function Alerts() {
       };
 
       setAlerts(newAlerts);
+      
+      // Save to cache if we have a selected field
+      if (selectedField?.id) {
+        saveAlertsToCache(selectedField.id, newAlerts);
+      }
+      
       console.log("✅ Alerts updated successfully");
       setLoading(false);
     } catch (err) {
@@ -368,13 +427,26 @@ export default function Alerts() {
   /* ----------------------------------------------------
      1. Load Coordinates from Selected Field
   ---------------------------------------------------- */
-  const loadFieldData = useCallback(async () => {
+  const loadFieldData = useCallback(async (forceRefresh = false) => {
     if (!selectedField) {
       console.log("⚠️ No field selected");
       return;
     }
 
     console.log("🔍 Loading field data:", selectedField.name);
+    
+    // Check cache first (unless forcing refresh)
+    if (!forceRefresh) {
+      const cachedAlerts = loadAlertsFromCache(selectedField.id);
+      if (cachedAlerts) {
+        console.log("📦 Loading alerts from cache");
+        setAlerts(cachedAlerts);
+        setLastLoadedFieldId(selectedField.id);
+        setError(null);
+        return;
+      }
+    }
+
     setLoading(true);
     setError(null);
 
@@ -382,6 +454,7 @@ export default function Alerts() {
       if (selectedField.lat && selectedField.lng) {
         // auto-run prediction for selected field
         await runLSTM(selectedField.lat, selectedField.lng);
+        setLastLoadedFieldId(selectedField.id);
       } else {
         setError("Field coordinates not found. Please draw this field on the map.");
         setLoading(false);
@@ -391,13 +464,16 @@ export default function Alerts() {
       setError("Failed to load field data");
       setLoading(false);
     }
-  }, [selectedField, runLSTM]);
+  }, [selectedField, runLSTM, currentUser]);
 
   useEffect(() => {
     if (userType === "farmer" && selectedField && !fieldsLoading) {
-      loadFieldData();
+      // Only load if field changed or we haven't loaded this field yet
+      if (selectedField.id !== lastLoadedFieldId) {
+        loadFieldData();
+      }
     }
-  }, [selectedField, userType, fieldsLoading]);
+  }, [selectedField?.id, userType, fieldsLoading, lastLoadedFieldId, loadFieldData]);
 
   useEffect(() => {
     if (!currentUser || userType !== "vendor") {
@@ -543,7 +619,7 @@ export default function Alerts() {
                 
                 {/* Refresh Button */}
               <button
-                onClick={loadFieldData}
+                onClick={() => loadFieldData(true)}
                   disabled={loading || !selectedField}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
               >
@@ -603,7 +679,7 @@ export default function Alerts() {
                   <h3 className="font-semibold text-red-900">Error Loading Alerts</h3>
                   <p className="text-sm text-red-700 mt-1">{error}</p>
                   <button
-                    onClick={loadFieldData}
+                    onClick={() => loadFieldData(true)}
                     className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
                   >
                     Try Again
@@ -615,57 +691,286 @@ export default function Alerts() {
 
           {/* Alerts Grid */}
           {!loading && !error && !isVendor && (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="space-y-6">
             {currentAlerts.map((alert) => {
               const conf = priorityConfig[alert.priority] || priorityConfig.medium;
               const Icon = conf.icon;
+              
+              // Handle both new format (metrics) and old format (description)
+              let metrics = alert.metrics;
+              if (!metrics && alert.description) {
+                // Parse old format description
+                const desc = alert.description;
+                const ndviMatch = desc.match(/NDVI\s*=\s*([^\n]+)/i);
+                const smMatch = desc.match(/Moisture\s*=\s*([^\n]+)/i);
+                const diseaseMatch = desc.match(/Disease Risk\s*=\s*(\d+)/i);
+                const pestMatch = desc.match(/Pest Risk\s*=\s*(\d+)/i);
+                
+                metrics = {
+                  ndvi: ndviMatch ? ndviMatch[1].trim() : "-",
+                  moisture: smMatch ? smMatch[1].trim() : "-",
+                  diseaseRisk: diseaseMatch ? parseInt(diseaseMatch[1]) : 0,
+                  pestRisk: pestMatch ? parseInt(pestMatch[1]) : 0,
+                  stressIndex: 0,
+                };
+              }
+              
+              if (!metrics) {
+                metrics = {
+                  ndvi: "-",
+                  moisture: "-",
+                  diseaseRisk: 0,
+                  pestRisk: 0,
+                  stressIndex: 0,
+                };
+              }
+
+              // Helper function to get metric status color with variety
+              const getMetricStatus = (value, type) => {
+                if (type === 'ndvi') {
+                  if (value === "-" || value === null || value === undefined) return { color: "text-gray-500", bg: "bg-gray-50", border: "border-gray-200" };
+                  const num = parseFloat(value);
+                  if (isNaN(num)) return { color: "text-gray-500", bg: "bg-gray-50", border: "border-gray-200" };
+                  if (num >= 0.7) return { color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-200" };
+                  if (num >= 0.4) return { color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200" };
+                  return { color: "text-rose-600", bg: "bg-rose-50", border: "border-rose-200" };
+                }
+                if (type === 'moisture') {
+                  if (value === "-" || value === null || value === undefined) return { color: "text-gray-500", bg: "bg-gray-50", border: "border-gray-200" };
+                  const num = parseFloat(value);
+                  if (isNaN(num)) return { color: "text-gray-500", bg: "bg-gray-50", border: "border-gray-200" };
+                  if (num >= 0.7) return { color: "text-cyan-600", bg: "bg-cyan-50", border: "border-cyan-200" };
+                  if (num >= 0.4) return { color: "text-sky-600", bg: "bg-sky-50", border: "border-sky-200" };
+                  return { color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-200" };
+                }
+                if (type === 'diseaseRisk') {
+                  const num = Number(value) || 0;
+                  if (num >= 60) return { color: "text-red-600", bg: "bg-red-50", border: "border-red-200" };
+                  if (num >= 30) return { color: "text-orange-600", bg: "bg-orange-50", border: "border-orange-200" };
+                  return { color: "text-lime-600", bg: "bg-lime-50", border: "border-lime-200" };
+                }
+                if (type === 'pestRisk') {
+                  const num = Number(value) || 0;
+                  if (num >= 60) return { color: "text-purple-600", bg: "bg-purple-50", border: "border-purple-200" };
+                  if (num >= 30) return { color: "text-pink-600", bg: "bg-pink-50", border: "border-pink-200" };
+                  return { color: "text-teal-600", bg: "bg-teal-50", border: "border-teal-200" };
+                }
+                if (type === 'stressIndex') {
+                  const num = Number(value) || 0;
+                  if (num >= 60) return { color: "text-rose-600", bg: "bg-rose-50", border: "border-rose-200" };
+                  if (num >= 30) return { color: "text-yellow-600", bg: "bg-yellow-50", border: "border-yellow-200" };
+                  return { color: "text-green-600", bg: "bg-green-50", border: "border-green-200" };
+                }
+                return { color: "text-gray-500", bg: "bg-gray-50", border: "border-gray-200" };
+              };
+
+              const ndviStatus = getMetricStatus(metrics.ndvi, 'ndvi');
+              const moistureStatus = getMetricStatus(metrics.moisture, 'moisture');
+              const diseaseStatus = getMetricStatus(metrics.diseaseRisk, 'diseaseRisk');
+              const pestStatus = getMetricStatus(metrics.pestRisk, 'pestRisk');
+              const stressStatus = getMetricStatus(metrics.stressIndex, 'stressIndex');
+
+              // Color scheme based on priority - using green shades for all
+              const priorityColors = {
+                high: {
+                  card: "border-green-400 bg-gradient-to-br from-green-50/60 to-white",
+                  header: "bg-green-100/60 border-green-300",
+                  iconBg: "bg-green-300",
+                  advisory: "bg-amber-50/50 border-amber-200",
+                  advisoryIcon: "bg-amber-200 text-amber-700",
+                  advisoryDot: "bg-amber-500"
+                },
+                medium: {
+                  card: "border-green-300 bg-gradient-to-br from-green-50/40 to-white",
+                  header: "bg-green-100/40 border-green-200",
+                  iconBg: "bg-green-200",
+                  advisory: "bg-teal-50/50 border-teal-200",
+                  advisoryIcon: "bg-teal-200 text-teal-700",
+                  advisoryDot: "bg-teal-500"
+                },
+                low: {
+                  card: "border-green-200 bg-gradient-to-br from-green-50/30 to-white",
+                  header: "bg-green-100/30 border-green-200",
+                  iconBg: "bg-green-200",
+                  advisory: "bg-emerald-50/50 border-emerald-200",
+                  advisoryIcon: "bg-emerald-200 text-emerald-700",
+                  advisoryDot: "bg-emerald-500"
+                }
+              };
+
+              const colors = priorityColors[alert.priority] || priorityColors.medium;
 
               return (
-                <Card key={alert.id} className="group p-6 border-2 hover:shadow-lg hover:scale-[1.02] transition-all">
-                  <div className="relative space-y-4">
-
-                    {/* Header */}
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-3">
-                        <div className="mt-0.5 rounded-md bg-muted/40 p-1.5">
+                <Card 
+                  key={alert.id} 
+                  className={cn(
+                    "group overflow-hidden border-2 transition-all duration-300 shadow-md hover:shadow-xl",
+                    colors.card
+                  )}
+                >
+                  {/* Header Section */}
+                  <div className={cn(
+                    "px-6 py-5 border-b",
+                    colors.header
+                  )}>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className={cn(
+                          "rounded-lg p-2.5",
+                          colors.iconBg
+                        )}>
                           <Icon className={cn("h-5 w-5", conf.iconClass)} />
                         </div>
                         <div>
-                          <h3 className="font-semibold">{alert.title}</h3>
-                          <p className="text-xs text-muted-foreground">{alert.timestamp}</p>
+                          <h3 className="text-lg font-semibold text-gray-900">{alert.title}</h3>
+                          <p className="text-xs text-gray-500 mt-0.5">{alert.timestamp}</p>
                         </div>
                       </div>
-                      <Badge variant={conf.badgeVariant} className="capitalize">{alert.priority}</Badge>
+                      <Badge 
+                        variant={conf.badgeVariant} 
+                        className={cn(
+                          "capitalize text-xs px-2.5 py-1",
+                          alert.priority === "high" && "animate-pulse bg-green-600 text-white border-green-700",
+                          alert.priority === "medium" && "bg-green-500 text-white border-green-600",
+                          alert.priority === "low" && "bg-green-400 text-white border-green-500"
+                        )}
+                      >
+                        {alert.priority}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Metrics Grid */}
+                  <div className="p-6">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
+                      {/* NDVI Metric */}
+                      <div className={cn(
+                        "rounded-lg p-4 border-2 bg-white transition-all hover:scale-105 hover:shadow-md",
+                        ndviStatus.border,
+                        "shadow-md"
+                      )}>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <Leaf className={cn("h-4 w-4", ndviStatus.color)} />
+                          <span className="text-xs font-semibold text-gray-700">NDVI</span>
+                        </div>
+                        <p className={cn("text-2xl font-bold mb-1", ndviStatus.color)}>
+                          {metrics.ndvi === "-" || metrics.ndvi === null || metrics.ndvi === undefined 
+                            ? "-" 
+                            : (isNaN(parseFloat(metrics.ndvi)) ? "-" : parseFloat(metrics.ndvi).toFixed(2))}
+                        </p>
+                        <p className="text-xs text-gray-500">Vegetation</p>
+                      </div>
+
+                      {/* Moisture Metric */}
+                      <div className={cn(
+                        "rounded-lg p-4 border-2 bg-white transition-all hover:scale-105 hover:shadow-md",
+                        moistureStatus.border,
+                        "shadow-md"
+                      )}>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <Droplets className={cn("h-4 w-4", moistureStatus.color)} />
+                          <span className="text-xs font-semibold text-gray-700">Moisture</span>
+                        </div>
+                        <p className={cn("text-2xl font-bold mb-1", moistureStatus.color)}>
+                          {metrics.moisture === "-" || metrics.moisture === null || metrics.moisture === undefined 
+                            ? "-" 
+                            : (isNaN(parseFloat(metrics.moisture)) ? "-" : parseFloat(metrics.moisture).toFixed(2))}
+                        </p>
+                        <p className="text-xs text-gray-500">Soil</p>
+                      </div>
+
+                      {/* Disease Risk Metric */}
+                      <div className={cn(
+                        "rounded-lg p-4 border-2 bg-white transition-all hover:scale-105 hover:shadow-md",
+                        diseaseStatus.border,
+                        "shadow-md"
+                      )}>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <Activity className={cn("h-4 w-4", diseaseStatus.color)} />
+                          <span className="text-xs font-semibold text-gray-700">Disease</span>
+                        </div>
+                        <p className={cn("text-2xl font-bold mb-1", diseaseStatus.color)}>
+                          {metrics.diseaseRisk}%
+                        </p>
+                        <p className="text-xs text-gray-500">Risk</p>
+                      </div>
+
+                      {/* Pest Risk Metric */}
+                      <div className={cn(
+                        "rounded-lg p-4 border-2 bg-white transition-all hover:scale-105 hover:shadow-md",
+                        pestStatus.border,
+                        "shadow-md"
+                      )}>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <Bug className={cn("h-4 w-4", pestStatus.color)} />
+                          <span className="text-xs font-semibold text-gray-700">Pest</span>
+                        </div>
+                        <p className={cn("text-2xl font-bold mb-1", pestStatus.color)}>
+                          {metrics.pestRisk}%
+                        </p>
+                        <p className="text-xs text-gray-500">Risk</p>
+                      </div>
+
+                      {/* Stress Index Metric */}
+                      <div className={cn(
+                        "rounded-lg p-4 border-2 bg-white transition-all hover:scale-105 hover:shadow-md",
+                        stressStatus.border,
+                        "shadow-md"
+                      )}>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <AlertCircle className={cn("h-4 w-4", stressStatus.color)} />
+                          <span className="text-xs font-semibold text-gray-700">Stress</span>
+                        </div>
+                        <p className={cn("text-2xl font-bold mb-1", stressStatus.color)}>
+                          {metrics.stressIndex}%
+                        </p>
+                        <p className="text-xs text-gray-500">Index</p>
+                      </div>
                     </div>
 
-                    {/* Description */}
-                    <pre className="text-sm text-muted-foreground whitespace-pre-wrap">{alert.description}</pre>
-
-                    {/* Action List */}
-                    <div className="space-y-2 pt-2 border-t">
-                      <p className="text-xs font-semibold uppercase">Advisory</p>
-                      <ul className="space-y-1.5">
+                    {/* Advisory Section */}
+                    <div className={cn(
+                      "rounded-lg p-5 border-2 bg-white shadow-md",
+                      alert.priority === "high" ? "border-amber-300" :
+                      alert.priority === "medium" ? "border-teal-300" :
+                      "border-emerald-300"
+                    )}>
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className={cn(
+                          "rounded-md p-2",
+                          colors.advisoryIcon
+                        )}>
+                          <CheckCircle2 className="h-5 w-5" />
+                        </div>
+                        <h4 className="text-base font-bold text-gray-900">Farm Advisory</h4>
+                      </div>
+                      <ul className="space-y-2.5">
                         {(alert.actions && alert.actions.length > 0) ? (
                           alert.actions.map((a, i) => (
-                            <li key={i} className="flex items-start gap-2 text-sm">
-                              <div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                              <span className="text-muted-foreground">{a}</span>
+                            <li key={i} className="flex items-start gap-3">
+                              <div className={cn(
+                                "mt-2 h-2 w-2 shrink-0 rounded-full",
+                                colors.advisoryDot
+                              )} />
+                              <span className="text-sm text-gray-700 leading-relaxed font-medium">{a}</span>
                             </li>
                           ))
                         ) : (
-                          <li className="text-xs text-gray-400">No specific advisory.</li>
+                          <li className="text-sm text-gray-500 italic">No specific advisory available at this time.</li>
                         )}
                       </ul>
                     </div>
 
-                    {/* Buttons */}
-                    <div className="flex gap-3 pt-3">
-                      <Button variant="outline" className="flex-1">View Details</Button>
-                      <Button variant="destructive" onClick={() => deleteAlert(alert.id)}>
+                    {/* Action Buttons */}
+                    <div className="flex justify-end gap-3 mt-6">
+                      <Button 
+                        variant="destructive" 
+                        onClick={() => deleteAlert(alert.id)}
+                        className="px-6 hover:bg-red-700"
+                      >
                         <Trash2 className="h-4 w-4" /> Delete
                       </Button>
                     </div>
-
                   </div>
                 </Card>
               );
@@ -674,57 +979,72 @@ export default function Alerts() {
           )}
 
           {!loading && !error && isVendor && (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="space-y-4">
             {chatAlerts.length === 0 ? (
-              <Card className="p-6 border-2 bg-card/70">
-                <div className="space-y-2">
-                  <p className="font-semibold">No new queries</p>
-                  <p className="text-sm text-muted-foreground">
-                    You don't have any unread messages from farmers.
-                  </p>
+              <Card className="p-12 text-center border-2 border-gray-200 bg-gradient-to-br from-gray-50 to-white">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="rounded-full bg-gray-100 p-4">
+                    <Bell className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <div>
+                    <p className="text-xl font-semibold text-gray-900">No new queries</p>
+                    <p className="text-sm text-gray-600 mt-2">
+                      You don't have any unread messages from farmers.
+                    </p>
+                  </div>
                 </div>
               </Card>
             ) : (
               chatAlerts.map((item) => (
                 <Card
                   key={item.id}
-                  className="group p-6 border-2 hover:shadow-lg hover:scale-[1.02] transition-all"
+                  className="group overflow-hidden border-2 border-green-200 bg-gradient-to-br from-green-50/50 to-white shadow-md hover:shadow-xl transition-all duration-300"
                 >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-3">
-                        <div className="mt-0.5 rounded-md bg-muted/40 p-1.5">
-                          <Bell className="h-5 w-5 text-green-600" />
+                  {/* Header */}
+                  <div className="px-6 py-4 border-b-2 border-green-200 bg-green-100/50">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-4">
+                        <div className="mt-1 rounded-xl p-3 bg-green-200 shadow-sm">
+                          <Bell className="h-6 w-6 text-green-700" />
                         </div>
                         <div>
-                          <h3 className="font-semibold">
-                            New query from {item.farmerName}
+                          <h3 className="text-xl font-bold text-gray-900">
+                            New Query from {item.farmerName}
                           </h3>
                           {item.lastSenderName && (
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-sm text-gray-600 mt-1">
                               Last message by {item.lastSenderName}
                             </p>
                           )}
                         </div>
                       </div>
-                      <Badge variant="default" className="capitalize">
+                      <Badge 
+                        variant="default" 
+                        className="capitalize text-sm px-3 py-1.5 bg-blue-600 text-white shadow-sm animate-pulse"
+                      >
                         Unread
                       </Badge>
                     </div>
+                  </div>
+
+                  {/* Message Content */}
+                  <div className="p-6">
                     {item.lastMessage && (
-                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                        {item.lastMessage}
-                      </p>
+                      <div className="rounded-xl p-5 bg-blue-50/50 border-2 border-blue-200 mb-6">
+                        <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                          {item.lastMessage}
+                        </p>
+                      </div>
                     )}
-                    <div className="flex gap-3 pt-2">
-                      <Button
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() => navigate(`/chat/${item.otherUserId}`)}
-                      >
-                        Open Chat
-                      </Button>
-                    </div>
+                    
+                    <Button
+                      variant="outline"
+                      className="w-full border-2 hover:bg-green-50 hover:border-green-300 text-base py-6"
+                      onClick={() => navigate(`/chat/${item.otherUserId}`)}
+                    >
+                      <Bell className="h-5 w-5 mr-2" />
+                      Open Chat Conversation
+                    </Button>
                   </div>
                 </Card>
               ))
@@ -734,22 +1054,54 @@ export default function Alerts() {
 
           {/* Summary */}
           {!loading && !error && !isVendor && (
-          <Card className="p-6 border-2 bg-card/70">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total alerts</p>
-                <p className="text-3xl font-bold">{currentAlerts.length}</p>
+          <Card className="overflow-hidden border-2 border-green-400 bg-gradient-to-br from-green-50/60 to-white shadow-md hover:shadow-xl transition-all duration-300">
+            {/* Header Section */}
+            <div className="px-6 py-5 border-b bg-green-100/60 border-green-300">
+              <div className="flex items-center gap-4">
+                <div className="rounded-lg p-2.5 bg-green-300">
+                  <Bell className="h-5 w-5 text-green-700" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Alert Summary</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Total alerts for selected period</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Content Section */}
+            <div className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="rounded-lg p-4 border-2 border-green-300 bg-white shadow-md">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Total Alerts</p>
+                  <p className="text-4xl font-bold text-green-700">{currentAlerts.length}</p>
+                </div>
               </div>
             </div>
           </Card>
           )}
 
           {!loading && !error && isVendor && (
-          <Card className="p-6 border-2 bg-card/70">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total unread queries</p>
-                <p className="text-3xl font-bold">{chatAlerts.length}</p>
+          <Card className="overflow-hidden border-2 border-green-400 bg-gradient-to-br from-green-50/60 to-white shadow-md hover:shadow-xl transition-all duration-300">
+            {/* Header Section */}
+            <div className="px-6 py-5 border-b bg-green-100/60 border-green-300">
+              <div className="flex items-center gap-4">
+                <div className="rounded-lg p-2.5 bg-green-300">
+                  <Bell className="h-5 w-5 text-green-700" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Notification Summary</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Total unread queries from farmers</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Content Section */}
+            <div className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="rounded-lg p-4 border-2 border-green-300 bg-white shadow-md">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Total Unread Queries</p>
+                  <p className="text-4xl font-bold text-green-700">{chatAlerts.length}</p>
+                </div>
               </div>
             </div>
           </Card>
