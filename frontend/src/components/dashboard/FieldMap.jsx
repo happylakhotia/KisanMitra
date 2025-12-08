@@ -1,30 +1,133 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { MapPin } from "lucide-react";
+import { useAuth } from "../../contexts/authcontext/Authcontext";
+import { db } from "../../firebase/firebase";
+import { doc, getDoc } from "firebase/firestore";
+
+const DEFAULT_CENTER = { lat: 17.3266, lng: 78.1695 };
 
 const FieldMap = () => {
+  const { currentUser } = useAuth();
+  const mapRef = useRef(null);
+  const [savedCoordinates, setSavedCoordinates] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setLoading(false);
+      setSavedCoordinates(null);
+      return;
+    }
+
+    const fetchFieldData = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const fieldRef = doc(db, "fields", currentUser.uid);
+        const snap = await getDoc(fieldRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          setSavedCoordinates(Array.isArray(data.coordinates) ? data.coordinates : null);
+        } else {
+          setSavedCoordinates(null);
+        }
+      } catch (err) {
+        console.error("Error loading field data:", err);
+        setError("Failed to load field area. Please try again later.");
+        setSavedCoordinates(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFieldData();
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    loadGoogleMaps(() => {
+      const center = computeCentroid(savedCoordinates) || DEFAULT_CENTER;
+      const map = new window.google.maps.Map(mapRef.current, {
+        center,
+        zoom: savedCoordinates?.length ? 17 : 13,
+        mapTypeId: "satellite",
+      });
+
+      if (savedCoordinates?.length) {
+        new window.google.maps.Polygon({
+          paths: savedCoordinates,
+          strokeColor: "#00FF00",
+          strokeWeight: 2,
+          fillColor: "#00FF00",
+          fillOpacity: 0.4,
+          map,
+        });
+
+        new window.google.maps.Marker({
+          position: center,
+          map,
+          icon: { path: window.google.maps.SymbolPath.CIRCLE, scale: 0 },
+          label: {
+            text: "Saved Field",
+            color: "white",
+            fontSize: "16px",
+          },
+        });
+      }
+    });
+  }, [savedCoordinates]);
+
+  function computeCentroid(coords) {
+    if (!coords?.length) return null;
+    const lat = coords.reduce((sum, point) => sum + (point.lat ?? 0), 0) / coords.length;
+    const lng = coords.reduce((sum, point) => sum + (point.lng ?? 0), 0) / coords.length;
+    return { lat, lng };
+  }
+
+  function loadGoogleMaps(callback) {
+    if (window.google) {
+      callback();
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src =
+      "https://maps.googleapis.com/maps/api/js?key=AIzaSyDKR_CVLRbV0lqjy_8JRWZAVDdO5Xl7jRk&libraries=places,drawing";
+    script.async = true;
+    script.defer = true;
+    script.onload = callback;
+    document.body.appendChild(script);
+  }
+
   return (
     <div className="rounded-2xl border border-gray-200 shadow-md bg-white/70 backdrop-blur-xl">
-      {/* Header */}
       <div className="p-4 border-b border-gray-200 flex items-center gap-2 bg-white/50 backdrop-blur-md rounded-t-2xl">
         <MapPin className="h-5 w-5 text-green-600" />
         <h2 className="text-lg font-semibold text-gray-700">Field Map</h2>
       </div>
 
-      {/* Map Placeholder */}
-      <div className="p-4">
-        <div
-          className="h-[500px] rounded-2xl bg-white
-                     border border-gray-200 shadow-inner
-                     flex items-center justify-center"
-        >
-          <div className="text-center">
-            <p className="text-gray-700 font-medium text-lg">
-              Interactive Map Coming Soon
-            </p>
-            <p className="text-sm text-gray-500 opacity-80 mt-2">
-              Field boundaries • Soil data • Vegetation layers
-            </p>
-          </div>
+      <div className="p-4 space-y-3">
+        {loading && (
+          <p className="text-sm text-gray-500">Loading your saved field...</p>
+        )}
+        {error && (
+          <p className="text-sm text-red-600">{error}</p>
+        )}
+
+        <div className="relative h-[500px] rounded-2xl border border-gray-200 shadow-inner bg-gray-100 overflow-hidden">
+          {!savedCoordinates?.length && !loading && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-4">
+              <p className="text-gray-700 font-medium text-lg">
+                Draw your field in Farm Selection to see it here.
+              </p>
+              <p className="text-sm text-gray-500">
+                We will show the exact area you drew on the Farm Selection map.
+              </p>
+            </div>
+          )}
+          <div ref={mapRef} className="w-full h-full"></div>
         </div>
       </div>
     </div>

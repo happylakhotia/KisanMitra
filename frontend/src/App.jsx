@@ -20,8 +20,10 @@ function App() {
       <Router>
         <Header />
         <Routes>
+          console.log("entered routes")
           {/* Public Routes */}
           <Route path="/" element={<Landing />} />
+          console.log("entered landing")
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           
