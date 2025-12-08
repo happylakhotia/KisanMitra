@@ -1,19 +1,20 @@
 import React, { useState } from 'react'
-import { Navigate, Link } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../../contexts/authcontext/Authcontext'
 import { doCreateUserWithEmailAndPassword } from '../../../firebase/auth'
+import './Register.css'
 
 const Register = () => {
-
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
-    const [confirmPassword, setconfirmPassword] = useState('')
+    const [confirmPassword, setConfirmPassword] = useState('')
     const [isRegistering, setIsRegistering] = useState(false)
     const [errorMessage, setErrorMessage] = useState('')
 
     const { userLoggedIn } = useAuth()
+    const navigate = useNavigate()
 
-    const onSubmit = async (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault()
         if(!isRegistering) {
             setIsRegistering(true)
@@ -24,6 +25,7 @@ const Register = () => {
             }
             try {
                 await doCreateUserWithEmailAndPassword(email, password)
+                // Navigation handled by Navigate component below
             } catch (error) {
                 setErrorMessage(error.message)
                 setIsRegistering(false)
@@ -35,77 +37,79 @@ const Register = () => {
         <>
             {userLoggedIn && (<Navigate to={'/home'} replace={true} />)}
 
-            <main className="w-full h-screen flex self-center place-content-center place-items-center">
-                <div className="w-96 text-gray-600 space-y-5 p-4 shadow-xl border rounded-xl">
-                    <div className="text-center mb-6">
-                        <div className="mt-2">
-                            <h3 className="text-gray-800 text-xl font-semibold sm:text-2xl">Create a New Account</h3>
-                        </div>
+            {/* Background Video */}
+            <video className="background-video" autoPlay loop muted playsInline>
+                <source src="https://github.com/AvinashJ74/AgriShop/assets/83860778/dcc330e0-3690-48f4-a135-073c038b6b38" type='video/mp4' />
+            </video>
 
+            <div className="form-container" style={{ minHeight: "100vh" }}>
+                <form onSubmit={handleSubmit} className="auth-form">
+                    <h4 className="title">Create Account</h4>
+                    
+                    <div className="mb-3">
+                        <input
+                            type="email"
+                            autoFocus
+                            autoComplete='email'
+                            required
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="form-control"
+                            placeholder="Enter Your Email"
+                        />
                     </div>
-                    <form
-                        onSubmit={onSubmit}
-                        className="space-y-4"
-                    >
-                        <div>
-                            <label className="text-sm text-gray-600 font-bold">
-                                Email
-                            </label>
-                            <input
-                                type="email"
-                                autoComplete='email'
-                                required
-                                value={email} onChange={(e) => { setEmail(e.target.value) }}
-                                className="w-full mt-2 px-3 py-2 text-gray-500 bg-transparent outline-none border focus:indigo-600 shadow-sm rounded-lg transition duration-300"
-                            />
-                        </div>
 
-                        <div>
-                            <label className="text-sm text-gray-600 font-bold">
-                                Password
-                            </label>
-                            <input
-                                disabled={isRegistering}
-                                type="password"
-                                autoComplete='new-password'
-                                required
-                                value={password} onChange={(e) => { setPassword(e.target.value) }}
-                                className="w-full mt-2 px-3 py-2 text-gray-500 bg-transparent outline-none border focus:border-indigo-600 shadow-sm rounded-lg transition duration-300"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="text-sm text-gray-600 font-bold">
-                                Confirm Password
-                            </label>
-                            <input
-                                disabled={isRegistering}
-                                type="password"
-                                autoComplete='off'
-                                required
-                                value={confirmPassword} onChange={(e) => { setconfirmPassword(e.target.value) }}
-                                className="w-full mt-2 px-3 py-2 text-gray-500 bg-transparent outline-none border focus:border-indigo-600 shadow-sm rounded-lg transition duration-300"
-                            />
-                        </div>
-
-                        {errorMessage && (
-                            <span className='text-red-600 font-bold'>{errorMessage}</span>
-                        )}
-
-                        <button
-                            type="submit"
+                    <div className="mb-3">
+                        <input
+                            type="password"
+                            autoComplete='new-password'
+                            required
                             disabled={isRegistering}
-                            className={`w-full px-4 py-2 text-white font-medium rounded-lg ${isRegistering ? 'bg-gray-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-xl transition duration-300'}`}
-                        >
-                            {isRegistering ? 'Signing Up...' : 'Sign Up'}
-                        </button>
-                        <div className="text-sm text-center">
-                            Already have an account? {'   '}
-                            <Link to={'/login'} className="text-center text-sm hover:underline font-bold">Continue</Link>
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="form-control"
+                            placeholder="Enter Your Password"
+                        />
+                    </div>
+
+                    <div className="mb-3">
+                        <input
+                            type="password"
+                            autoComplete='off'
+                            required
+                            disabled={isRegistering}
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            className="form-control"
+                            placeholder="Confirm Your Password"
+                        />
+                    </div>
+
+                    {errorMessage && (
+                        <div className="error-message">
+                            {errorMessage}
                         </div>
-                    </form>
-                </div>
-            </main>
+                    )}
+
+                    <div className="mb-3">
+                        <button
+                            type="button"
+                            className="btn forgot-btn"
+                            onClick={() => navigate("/login")}
+                        >
+                            Already have an account? Sign In
+                        </button>
+                    </div>
+
+                    <button 
+                        type="submit" 
+                        className="btn btn-primary"
+                        disabled={isRegistering}
+                    >
+                        {isRegistering ? 'SIGNING UP...' : 'SIGN UP'}
+                    </button>
+                </form>
+            </div>
         </>
     )
 }
