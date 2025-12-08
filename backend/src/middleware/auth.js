@@ -1,3 +1,4 @@
+import { auth } from '../config/firebase.js';
 
 export const authenticate = async (req, res, next) => {
   try {
@@ -7,12 +8,19 @@ export const authenticate = async (req, res, next) => {
       return res.status(401).json({ error: 'No token provided' });
     }
     
+    // Verify Firebase token
+    const decodedToken = await auth.verifyIdToken(token);
     
     // Attach user to request
-    req.user = { id: 'user-id', email: 'user@example.com' };
+    req.user = {
+      uid: decodedToken.uid,
+      email: decodedToken.email,
+      email_verified: decodedToken.email_verified
+    };
     
     next();
   } catch (error) {
+    console.error('Authentication error:', error);
     res.status(401).json({ error: 'Invalid token' });
   }
 };

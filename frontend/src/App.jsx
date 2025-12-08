@@ -4,8 +4,12 @@ import Landing from './components/landing/Landing'
 import Login from './components/auth/login/Login'
 import Register from './components/auth/register/Register'
 import Home from './pages/Home'
+import Profile from './pages/Profile'
 import Header from './components/header/Header'
+import FarmSelection from "./pages/FarmSelection";
+import Features from "./pages/Features";
 import './App.css'
+
 
 function App() {
   return (
@@ -20,7 +24,11 @@ function App() {
           
           {/* Protected Routes */}
           <Route path="/home" element={<Home />} />
-          
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/farm-selection" element={<FarmSelection />} />
+          <Route path="/features" element={<Features />} />
+
+
           {/* Catch all - redirect to landing page */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

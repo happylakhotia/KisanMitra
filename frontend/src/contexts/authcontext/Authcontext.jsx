@@ -23,8 +23,8 @@ export function AuthProvider({ children }) {
 
   async function initializeUser(user) {
     if (user) {
-
-      setCurrentUser({ ...user });
+      // Keep the original user object to preserve Firebase methods like getIdToken()
+      setCurrentUser(user);
 
       // check if provider is email and password login
       const isEmail = user.providerData.some(

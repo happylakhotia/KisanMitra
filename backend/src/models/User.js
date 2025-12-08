@@ -3,9 +3,11 @@ export class User {
   constructor(data) {
     this.id = data.id;
     this.email = data.email;
-    this.name = data.name;
-    this.phone = data.phone;
-    this.address = data.address;
+    this.firstName = data.firstName || '';
+    this.lastName = data.lastName || '';
+    this.farmAddress = data.farmAddress || '';
+    this.acres = data.acres || '';
+    this.phone = data.phone || '';
     this.role = data.role || 'user';
     this.createdAt = data.createdAt || new Date();
     this.updatedAt = data.updatedAt || new Date();
@@ -15,9 +17,11 @@ export class User {
     return {
       id: this.id,
       email: this.email,
-      name: this.name,
+      firstName: this.firstName,
+      lastName: this.lastName,
+      farmAddress: this.farmAddress,
+      acres: this.acres,
       phone: this.phone,
-      address: this.address,
       role: this.role,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
