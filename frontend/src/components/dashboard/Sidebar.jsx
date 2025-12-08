@@ -9,7 +9,9 @@ import {
   FileText,
   HeadphonesIcon,
   DollarSign,
-  User
+  User,
+  Leaf,
+  Bug
 } from "lucide-react";
 
 const Sidebar = () => {
@@ -20,13 +22,13 @@ const Sidebar = () => {
     { icon: LayoutDashboard, name: "Dashboard", href: "/home" },
     { icon: Layers, name: "Features", href: "/features" },
     { icon: MapPin, name: "Farm Selection", href: "/farm-selection" },
-    { icon: MapPin, name: "Disease Detection", href: "/disease-detection"},
-    { icon: MapPin, name: "Pest-Scanner", href: "/pest-scanner"},
+    { icon: Leaf, name: "Disease Detection", href: "/disease-detection"},
+    { icon: Bug, name: "Pest-Scanner", href: "/pest-scanner"},
     { icon: BarChart3, name: "Analytics", href: "#" },
     { icon: Bell, name: "Alerts", href: "/alerts" },
     { icon: FileText, name: "Reports", href: "#" },
-    { icon: HeadphonesIcon, name: "Support", href: "#" },
-    { icon: DollarSign, name: "Pricing", href: "#" },
+    // { icon: HeadphonesIcon, name: "Support", href: "#" },
+    // { icon: DollarSign, name: "Pricing", href: "#" },
     { icon: User, name: "Account", href: "/profile" },
   ];
 

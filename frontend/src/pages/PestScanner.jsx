@@ -1,26 +1,32 @@
 import React, { useState } from "react";
+import Navbar from "../components/dashboard/Navbar";
+import Sidebar from "../components/dashboard/Sidebar";
+import { useAuth } from "../contexts/authcontext/Authcontext";
+import { Navigate } from "react-router-dom";
 
 export default function PestScanner() {
+  const { currentUser, userLoggedIn } = useAuth();
+
   const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(null);
   const [fileName, setFileName] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
 
-  // Handle file selection
+  if (!userLoggedIn) return <Navigate to="/login" replace />;
+
   const handleFileSelect = (e) => {
     const f = e.target.files[0];
     if (f) {
       setFile(f);
       setFileName(f.name);
+      setPreview(URL.createObjectURL(f)); // image preview
+      setResult(null); // clear old result
     }
   };
 
-  // Main pest detection function
   const checkPests = async () => {
-    if (!file) {
-      alert("Please select an image!");
-      return;
-    }
+    if (!file) return alert("Please select an image!");
 
     setLoading(true);
     setResult(null);
@@ -29,142 +35,208 @@ export default function PestScanner() {
     formData.append("file", file);
 
     try {
-      // If you use your node proxy:
-      // const API_URL = "http://localhost:5000/api/pest/predict";
-
-      // If you call HuggingFace directly:
-     const response = await fetch("http://localhost:5000/api/pest/predict", {
-  method: "POST",
-  body: formData,
-});
+      const response = await fetch("http://localhost:5000/api/pest/predict", {
+        method: "POST",
+        body: formData,
+      });
 
       const data = await response.json();
       setResult(data);
-
-    } catch (error) {
-      console.error(error);
-      alert("Error connecting to server!");
+    } catch (err) {
+      console.error(err);
+      alert("Server error! Check CORS.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-orange-50">
-      <div className="bg-white p-8 w-[450px] rounded-xl shadow-xl text-center">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-green-100">
+      <Navbar currentUser={currentUser} />
+      <Sidebar />
 
-        <h2 className="text-2xl font-bold text-orange-700 mb-2">
-          🦗 Phasal Pest Doctor
-        </h2>
+      <div className="pt-28 lg:ml-64 px-8">
+        <div className="max-w-7xl mx-auto">
 
-        <p className="text-gray-600 text-sm mb-4">
-          Upload photo to detect & count insects
-        </p>
-
-        {/* Upload Box */}
-        <label
-          htmlFor="fileInput"
-          className="border-2 border-orange-700 bg-orange-100 p-6 rounded-lg 
-                     cursor-pointer font-semibold text-orange-700 hover:bg-orange-200"
-        >
-          📸 Click to Upload Image
-        </label>
-
-        <input id="fileInput" type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
-
-        {fileName && (
-          <p className="text-gray-500 text-sm mt-2">Selected: {fileName}</p>
-        )}
-
-        {/* Button */}
-        <button
-          disabled={loading}
-          onClick={checkPests}
-          className={`w-full py-3 mt-4 rounded-lg font-bold text-white transition 
-            ${loading ? "bg-gray-400" : "bg-orange-600 hover:bg-orange-700"}`}
-        >
-          {loading ? "Scanning..." : "🔍 Scan for Pests"}
-        </button>
-
-        {loading && (
-          <p className="text-orange-600 font-semibold mt-2">
-            🦟 Scanning Field... (Please wait)
+          {/* Header */}
+          <h2 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+            🦗 Pest Scanner
+          </h2>
+          <p className="text-gray-600 mb-6">
+            Upload a crop image to detect pests & find solutions instantly.
           </p>
-        )}
 
-        {/* Result Section */}
-        {result && (
-          <div className="mt-6 text-left border-t pt-4">
+          {/* MAIN CONTENT CARD */}
+          <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-8 
+                          grid grid-cols-1 lg:grid-cols-2 gap-10">
 
-            {/* MAIN STATUS */}
-            <div
-              className={`text-center font-bold text-lg p-3 rounded-lg mb-4 
-                ${result.status === "SAFE"
-                ? "bg-green-100 text-green-700"
-                : "bg-red-100 text-red-700"
-                }`}
-            >
-              {result.status === "SAFE" ? (
-                <>✅ Fasal Surakshit Hai (Safe)</>
-              ) : (
-                <>⚠ {result.total_pests} Keede Mile (Infected)</>
+            {/* LEFT — IMAGE PREVIEW */}
+            <div className="flex flex-col items-center">
+
+              {/* Preview Box */}
+              <div className="w-full h-96 bg-gray-100 rounded-xl border flex items-center justify-center overflow-hidden">
+                {preview ? (
+                  <img src={preview} className="w-full h-full object-cover" />
+                ) : (
+                  <p className="text-gray-400">No image selected</p>
+                )}
+              </div>
+
+              {/* Upload */}
+              <label
+                htmlFor="fileInput"
+                className="mt-5 cursor-pointer bg-orange-600 hover:bg-orange-700 
+                           text-white px-6 py-3 rounded-lg font-medium"
+              >
+                📸 Upload Pest Image
+              </label>
+
+              <input
+                id="fileInput"
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFileSelect}
+              />
+
+              {fileName && (
+                <p className="text-gray-500 text-sm mt-2">{fileName}</p>
               )}
             </div>
 
-            {/* SAFE CASE */}
-            {result.status === "SAFE" && (
-              <p className="text-center text-gray-600 mb-3">
-                Koi hanikarak keeda nahi mila.
-              </p>
-            )}
+            {/* RIGHT — RESULTS + BUTTON */}
+            <div>
+              {/* Scan Button */}
+              <button
+                disabled={loading}
+                onClick={checkPests}
+                className={`w-full py-4 rounded-lg text-white font-semibold text-lg transition 
+                  ${loading ? "bg-gray-400" : "bg-orange-600 hover:bg-orange-700"}`}
+              >
+                {loading ? "Scanning..." : "🔍 Scan for Pests"}
+              </button>
 
-            {/* INFECTED CASE */}
-            {result.status !== "SAFE" &&
-              result.report?.map((pest, idx) => (
-                <div
-                  key={idx}
-                  className="bg-slate-50 border-l-4 p-3 rounded-md shadow-sm mb-4"
-                  style={{
-                    borderColor:
-                      pest.severity === "CRITICAL" ? "#dc2626" : "#eab308",
-                  }}
-                >
-                  {/* Name & count */}
-                  <div className="flex justify-between font-bold text-gray-700">
-                    <span>{pest.pest}</span>
-                    <span className="bg-gray-800 text-white px-2 py-1 rounded-full text-xs">
-                      {pest.count} detected
-                    </span>
-                  </div>
+              {loading && (
+                <p className="text-orange-700 font-medium mt-3">
+                  🐜 Detecting pests... Please wait.
+                </p>
+              )}
 
-                  {/* Severity */}
-                  <div
-                    className={`inline-block mt-2 text-xs font-bold px-2 py-1 rounded 
-                      ${pest.severity === "CRITICAL"
-                        ? "bg-red-100 text-red-600 border border-red-300"
-                        : "bg-yellow-100 text-yellow-700 border border-yellow-300"}  
-                    `}
-                  >
-                    {pest.severity}
-                  </div>
+{/* RESULTS */}
+{result && (
+  <div className="mt-8 space-y-6">
 
-                  {/* Advice */}
-                  <p className="text-gray-600 text-sm italic mt-2">
-                    💡 {pest.solution}
-                  </p>
+    {/* ====== DIAGNOSIS CARD (Red) ====== */}
+    <div className="bg-red-50 border border-red-200 rounded-xl p-5 shadow-sm">
+  <div className="flex items-center gap-2 mb-1">
+    <span className="text-red-600 text-xl">🩺</span>
+    <h3 className="text-sm font-bold text-red-700 uppercase tracking-wide">
+      Diagnosis
+    </h3>
+  </div>
 
-                  {/* Buy Button */}
-                  <a
-                    href={pest.links?.amazon}
-                    target="_blank"
-                    className="block bg-blue-600 text-white text-center mt-3 py-1 rounded text-sm"
-                  >
-                    🛒 Buy Medicine ({pest.links?.medicine})
-                  </a>
-                </div>
-              ))}
+  <div className="text-2xl font-extrabold text-red-700 leading-tight">
+
+    {/* If SAFE */}
+    {result.status === "SAFE" && "No Pest Infection"}
+
+    {/* If NOT SAFE → Show Pest Name Instead of Count */}
+    {result.status !== "SAFE" &&
+      `⚠️ ${result.report?.[0]?.pest || "Pest Detected"}`}
+  </div>
+
+  {result.status !== "SAFE" && (
+    <p className="text-red-600 mt-1 text-sm">
+      AI detected harmful pest activity in the uploaded image.
+    </p>
+  )}
+
+  {result.status === "SAFE" && (
+    <p className="text-red-600 mt-1 text-sm">
+      AI did not find any harmful pests.
+    </p>
+  )}
+</div>
+
+
+    {/* ====== SUGGESTED CURE CARD (Green) ====== */}
+{result.status !== "SAFE" && (
+  <div className="bg-green-50 border border-green-200 rounded-xl p-5 shadow-sm">
+    <div className="flex items-center gap-2 mb-2">
+      <span className="text-green-700 text-xl">🌱</span>
+      <h3 className="text-sm font-bold text-green-800 uppercase tracking-wide">
+        Suggested Cure
+      </h3>
+    </div>
+
+    {/* Multiple pests → show multiple cures */}
+    <div className="space-y-3">
+      {result.report?.map((p, idx) => (
+        <div
+          key={idx}
+          className="bg-white p-3 rounded-lg border border-green-200 shadow-inner 
+                     flex justify-center items-center"
+        >
+          {/* Cure Text Centered */}
+          <p className="text-gray-800 text-lg leading-relaxed text-center">
+            {p.solution}
+          </p>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
+
+
+
+    {/* ====== BUY MEDICINE (Blue) ====== */}
+    {result.status !== "SAFE" && (
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 shadow-sm">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-blue-700 text-xl">🛒</span>
+          <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wide">
+            Buy Medicine
+          </h3>
+        </div>
+
+      <div className="grid grid-cols-2 gap-3">
+
+  {result.report?.map((p, idx) => (
+    <a
+      key={idx}
+      href={p.links?.amazon}
+      target="_blank"
+      className="block bg-orange-500 hover:bg-orange-600 text-white 
+                 text-sm text-center font-semibold py-2 rounded-md shadow-md"
+    >
+      Amazon
+    </a>
+  ))}
+
+  {result.report?.map((p, idx) => (
+    <a
+      key={"f" + idx}
+      href={p.links?.flipkart}
+      target="_blank"
+      className="block bg-blue-600 hover:bg-blue-700 text-white 
+                 text-sm text-center font-semibold py-2 rounded-md shadow-md"
+    >
+      Flipkart
+    </a>
+  ))}
+
+</div>
+
+      </div>
+    )}
+
+  </div>
+)}
+
+            </div>
+
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
