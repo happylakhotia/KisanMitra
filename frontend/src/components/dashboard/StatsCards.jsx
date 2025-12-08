@@ -1,8 +1,8 @@
 import React from "react";
-import { Leaf, Sprout, Trees, AlertTriangle } from "lucide-react";
+import { Leaf, Sprout, Trees, AlertTriangle, Thermometer, Activity } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-const StatsCards = ({ field, totalFields = 1, alertsData = { total: 0, highPriority: 0 } }) => {
+const StatsCards = ({ field, totalFields = 1, alertsData = { total: 0, highPriority: 0 }, weatherData = null, lstmData = null }) => {
   const { t } = useTranslation();
 
   // Calculate percentage for active fields (assuming max 10 fields as 100%)
@@ -12,6 +12,60 @@ const StatsCards = ({ field, totalFields = 1, alertsData = { total: 0, highPrior
   const highPriorityPercentage = alertsData.total > 0 
     ? ((alertsData.highPriority / alertsData.total) * 100).toFixed(0)
     : "0";
+
+  // Get temperature from weather data
+  const temperature = weatherData && weatherData.main && weatherData.main.temp 
+    ? `${Math.round(weatherData.main.temp)}°C`
+    : "--";
+  
+  const tempStatus = weatherData && weatherData.main && weatherData.main.temp 
+    ? (weatherData.main.temp >= 15 && weatherData.main.temp <= 30 ? "Optimal range" : "Monitor required")
+    : "Loading...";
+
+  // Calculate disease risk from NDVI data
+  let diseasePercentage = 0;
+  let diseaseStatus = "Loading...";
+  
+  if (lstmData && lstmData.forecast && lstmData.forecast.day_1) {
+    // Get NDVI from day_1 forecast
+    const ndviValue = lstmData.forecast.day_1.ndvi || lstmData.forecast.day_1.NDVI || 0;
+    
+    // Calculate disease percentage based on NDVI zones
+    // NDVI Reference: -1 to 0.15 (Red), 0.15 to 0.25 (Orange), 0.25 to 0.40 (Light Green), > 0.40 (Dark Green)
+    if (ndviValue < 0.15) {
+      // Very poor vegetation - Very high disease (80-100%)
+      diseasePercentage = Math.round(100 - ((ndviValue + 1) / 1.15) * 20);
+    } else if (ndviValue >= 0.15 && ndviValue < 0.25) {
+      // Poor vegetation - High disease (60-80%)
+      diseasePercentage = Math.round(80 - ((ndviValue - 0.15) / 0.1) * 20);
+    } else if (ndviValue >= 0.25 && ndviValue < 0.40) {
+      // Moderate vegetation - Moderate disease (30-60%)
+      diseasePercentage = Math.round(60 - ((ndviValue - 0.25) / 0.15) * 30);
+    } else if (ndviValue >= 0.40) {
+      // Healthy vegetation - Low disease (0-30%)
+      diseasePercentage = Math.round(Math.max(0, 30 - ((ndviValue - 0.40) / 0.6) * 30));
+    } else {
+      diseasePercentage = 0;
+    }
+    
+    // Ensure percentage is within 0-100 range
+    diseasePercentage = Math.max(0, Math.min(100, diseasePercentage));
+    
+    // Set status based on percentage
+    if (diseasePercentage === 0) {
+      diseaseStatus = "No disease detected";
+    } else if (diseasePercentage < 30) {
+      diseaseStatus = "Low risk";
+    } else if (diseasePercentage < 60) {
+      diseaseStatus = "Moderate risk";
+    } else {
+      diseaseStatus = "High risk - Action needed";
+    }
+    
+    console.log("📊 Disease Risk Calculation:", { ndviValue, diseasePercentage, diseaseStatus });
+  } else if (!lstmData) {
+    diseaseStatus = "No data available";
+  }
 
   const stats = [
     {
@@ -26,20 +80,20 @@ const StatsCards = ({ field, totalFields = 1, alertsData = { total: 0, highPrior
       text: "text-green-700",
     },
     {
-      titleKey: "stats_soil_conditions",
-      subtitleKey: "stats_soil_conditions_sub",
-      value: field && field.soil != null ? `${field.soil}%` : "--",
-      icon: Leaf,
+      title: "Temperature",
+      subtitle: tempStatus,
+      value: temperature,
+      icon: Thermometer,
       bg: "bg-lime-50",
       border: "border-lime-200",
       iconBg: "bg-lime-100",
       text: "text-lime-700",
     },
     {
-      titleKey: "stats_vegetation_indices",
-      subtitleKey: "stats_vegetation_indices_sub",
-      value: field && typeof field.ndvi === "number" ? field.ndvi.toFixed(2) : "0.72",
-      icon: Sprout,
+      title: "Disease Risk",
+      subtitle: diseaseStatus,
+      value: `${diseasePercentage}%`,
+      icon: Activity,
       bg: "bg-yellow-50",
       border: "border-yellow-200",
       iconBg: "bg-yellow-100",
@@ -74,7 +128,7 @@ const StatsCards = ({ field, totalFields = 1, alertsData = { total: 0, highPrior
             {/* Header */}
             <div className="flex items-start justify-between mb-4">
               <h3 className={`text-sm font-medium ${card.text}`}>
-                {t(card.titleKey)}
+                {card.titleKey ? t(card.titleKey) : card.title}
               </h3>
 
               <div className={`p-2 rounded-lg ${card.iconBg}`}>
@@ -91,7 +145,7 @@ const StatsCards = ({ field, totalFields = 1, alertsData = { total: 0, highPrior
               </div>
 
               <p className={`text-[11px] opacity-60 ${card.text}`}>
-                {t(card.subtitleKey)}
+                {card.subtitleKey ? t(card.subtitleKey) : card.subtitle}
               </p>
               
               {/* Show percentage if available */}

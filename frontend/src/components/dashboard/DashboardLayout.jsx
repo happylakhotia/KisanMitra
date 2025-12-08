@@ -9,68 +9,145 @@ import KisanMitraChat from "./KisanMitraChat";
 import { Bot, Trash2, MessageCircle } from "lucide-react";
 import { db } from "../../firebase/firebase";
 import { collection, getDocs, doc, setDoc, getDoc, deleteDoc } from "firebase/firestore";
+import axios from "axios";
+
+const OPENWEATHER_API_KEY = "6af24b4f823c9044d1cbad4c94379de5";
+const OPENWEATHER_BASE_URL = "https://api.openweathermap.org/data/2.5";
 
 const DashboardLayout = ({ currentUser, onLogout }) => {
   const [fields, setFields] = useState([]);
   const [selectedField, setSelectedField] = useState(null);
   const [loading, setLoading] = useState(true);
   const [alertsData, setAlertsData] = useState({ total: 0, highPriority: 0 });
+  const [weatherData, setWeatherData] = useState(null);
+  const [lstmData, setLstmData] = useState(null);
   const [heatmapOverlay, setHeatmapOverlay] = useState(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isChatMinimized, setIsChatMinimized] = useState(false);
 
-  // Fetch alerts for selected field
+  // Fetch weather data for selected field
   useEffect(() => {
-    const fetchAlerts = async () => {
+    const fetchWeather = async () => {
       if (!selectedField || !selectedField.lat || !selectedField.lng) {
+        setWeatherData(null);
+        return;
+      }
+
+      try {
+        const weatherUrl = `${OPENWEATHER_BASE_URL}/weather`;
+        const weatherParams = {
+          lat: selectedField.lat,
+          lon: selectedField.lng,
+          appid: OPENWEATHER_API_KEY,
+          units: 'metric'
+        };
+        
+        const response = await axios.get(weatherUrl, {
+          params: weatherParams,
+          timeout: 10000
+        });
+
+        if (response.data) {
+          setWeatherData(response.data);
+        }
+      } catch (err) {
+        console.error("Error fetching weather:", err);
+        setWeatherData(null);
+      }
+    };
+
+    fetchWeather();
+  }, [selectedField]);
+
+  // Load alerts count from cache (same as Alerts page)
+  useEffect(() => {
+    const loadAlertsFromCache = () => {
+      if (!selectedField || !currentUser) {
         setAlertsData({ total: 0, highPriority: 0 });
         return;
       }
 
       try {
-        const response = await fetch("http://localhost:5001/predict", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            lat: selectedField.lat,
-            lng: selectedField.lng
-          })
-        });
-
-        if (response.ok) {
-          const data = await response.json();
+        const cacheKey = `alerts_cache_${currentUser.uid}_${selectedField.id}`;
+        const cached = localStorage.getItem(cacheKey);
+        
+        if (cached) {
+          const cacheData = JSON.parse(cached);
+          const alerts = cacheData.alerts;
           
           // Count total alerts and high priority alerts
           let total = 0;
           let highPriority = 0;
-
-          ['daily', 'weekly', 'biweekly'].forEach(period => {
-            if (data[period]) {
-              total += 1; // Each period is one alert
-              
-              // Check if any risk is high (>60)
-              const forecast = data[period];
-              const disease = forecast.disease_risk ?? 0;
-              const pest = forecast.pest_risk ?? 0;
-              const stressIndex = forecast.water_stress_index ?? 0;
-              
-              if (Number(disease) > 60 || Number(pest) > 60 || Number(stressIndex) > 60) {
-                highPriority += 1;
-              }
+          
+          Object.keys(alerts).forEach(period => {
+            if (alerts[period] && Array.isArray(alerts[period])) {
+              alerts[period].forEach(alert => {
+                total += 1;
+                if (alert.priority === "high") {
+                  highPriority += 1;
+                }
+              });
             }
           });
-
+          
           setAlertsData({ total, highPriority });
+          console.log("✅ Loaded alerts from cache:", { total, highPriority });
         } else {
           setAlertsData({ total: 0, highPriority: 0 });
+          console.log("⚠️ No alerts cache found for field:", selectedField.id);
         }
       } catch (err) {
-        console.error("Error fetching alerts:", err);
+        console.error("❌ Error loading alerts from cache:", err);
         setAlertsData({ total: 0, highPriority: 0 });
       }
     };
 
-    fetchAlerts();
+    loadAlertsFromCache();
+    
+    // Re-check cache every 5 seconds to stay in sync with Alerts page
+    const interval = setInterval(loadAlertsFromCache, 5000);
+    
+    return () => clearInterval(interval);
+  }, [selectedField, currentUser]);
+
+  // Fetch LSTM data for disease risk calculation
+  useEffect(() => {
+    const fetchLSTMData = async () => {
+      if (!selectedField || !selectedField.lat || !selectedField.lng) {
+        setLstmData(null);
+        return;
+      }
+
+      try {
+        console.log("🌾 Fetching LSTM data for dashboard:", selectedField.lat, selectedField.lng);
+        
+        const response = await fetch("https://itvi-1234-lstmnew.hf.space/predict", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            lat: selectedField.lat,
+            lon: selectedField.lng
+          })
+        });
+
+        console.log("📡 LSTM API Response status:", response.status);
+        const result = await response.json();
+        console.log("📊 LSTM API Result:", result);
+
+        if (result && result.success) {
+          const data = result.data || {};
+          setLstmData(data);
+          console.log("✅ LSTM data updated");
+        } else {
+          setLstmData(null);
+        }
+      } catch (err) {
+        console.error("❌ Error fetching LSTM data:", err);
+        setLstmData(null);
+      }
+    };
+
+    fetchLSTMData();
   }, [selectedField]);
 
   // Fetch fields from Firebase
@@ -283,7 +360,7 @@ const DashboardLayout = ({ currentUser, onLogout }) => {
           )}
 
           {/* PASS SELECTED FIELD */}
-          {selectedField && <StatsCards field={selectedField} totalFields={fields.length} alertsData={alertsData} />}
+          {selectedField && <StatsCards field={selectedField} totalFields={fields.length} alertsData={alertsData} weatherData={weatherData} lstmData={lstmData} />}
 
           {/* Larger map + larger vegetation card */}
           {selectedField && (
