@@ -7,6 +7,76 @@ const CLIENT_ID = "2869324a-556d-47ef-8a86-51d6afa72823";
 const CLIENT_SECRET = "Dwwx2LD2ZAqBktucTUIF5QmeksgItyw3";
 const AI_BASE_URL = "https://itvi-1234-indexesall.hf.space";
 
+// Index descriptions for the report
+const INDEX_DESCRIPTIONS = {
+  NDVI: {
+    title: "NDVI (Normalized Difference Vegetation Index)",
+    description: "Measures vegetation health and density. Higher values (green) indicate healthy, dense vegetation. Lower values (red/orange) indicate stressed or sparse vegetation.",
+    interpretation: {
+      healthy: { range: "> 0.40", meaning: "Excellent health - Dense, thriving vegetation with optimal chlorophyll levels" },
+      good: { range: "0.25 - 0.40", meaning: "Good health - Healthy vegetation with adequate nutrient uptake" },
+      moderate: { range: "0.15 - 0.25", meaning: "Moderate stress - Check for water or nutrient deficiency" },
+      poor: { range: "< 0.15", meaning: "High stress/Bare soil - Immediate attention recommended" }
+    }
+  },
+  SAVI: {
+    title: "SAVI (Soil Adjusted Vegetation Index)",
+    description: "Similar to NDVI but adjusted for soil brightness. Better for areas with sparse vegetation or exposed soil.",
+    interpretation: {
+      healthy: { range: "> 0.40", meaning: "Dense vegetation with minimal soil influence" },
+      good: { range: "0.25 - 0.40", meaning: "Good vegetation cover" },
+      moderate: { range: "0.15 - 0.25", meaning: "Moderate vegetation with visible soil" },
+      poor: { range: "< 0.15", meaning: "Sparse vegetation or bare soil" }
+    }
+  },
+  EVI: {
+    title: "EVI (Enhanced Vegetation Index)",
+    description: "Optimized for high biomass regions. Better at detecting vegetation in dense canopy areas.",
+    interpretation: {
+      healthy: { range: "> 0.50", meaning: "Very dense canopy with high biomass" },
+      good: { range: "0.35 - 0.50", meaning: "Good canopy development" },
+      moderate: { range: "0.20 - 0.35", meaning: "Moderate vegetation density" },
+      poor: { range: "< 0.20", meaning: "Sparse vegetation" }
+    }
+  },
+  NDRE: {
+    title: "NDRE (Normalized Difference Red Edge)",
+    description: "Sensitive to chlorophyll content and crop growth stages. Useful for monitoring crop maturity.",
+    interpretation: {
+      maturity: { range: "> 0.22", meaning: "Maturity/flowering stage - Monitor for harvest" },
+      active: { range: "0.12 - 0.22", meaning: "Active growth with high chlorophyll" },
+      early: { range: "0.02 - 0.12", meaning: "Early vegetative stage" },
+      dormant: { range: "< 0.02", meaning: "Dormant or bare soil" }
+    }
+  }
+};
+
+
+// Detailed chart descriptions matching Analytics page
+const CHART_DESCRIPTIONS = {
+  soilMoistureRainfall: {
+    title: "Soil Moisture vs Rainfall Analysis",
+    description: "This chart shows the relationship between rainfall events (blue bars) and soil moisture levels (blue line). When rainfall occurs, soil moisture increases. During dry periods, moisture decreases due to evapotranspiration. Optimal soil moisture for most crops is 40-70%. Values below 30% indicate drought stress, while values above 80% may cause waterlogging issues.",
+    insight: "Use this to plan irrigation - irrigate when moisture drops below 40% and no rain is forecasted."
+  },
+  vpdTemperature: {
+    title: "Water Stress (VPD) & Temperature",
+    description: "VPD (Vapor Pressure Deficit) measures atmospheric dryness and plant water stress. The orange area shows VPD levels, while the red line tracks maximum temperature. VPD above 1.5 kPa (marked by red dashed line) indicates high water stress where plants struggle to maintain proper transpiration. High temperatures combined with high VPD accelerate crop stress.",
+    insight: "Days with VPD > 1.5 kPa require increased irrigation or shade protection for sensitive crops."
+  },
+  healthIndices: {
+    title: "Crop Health Indices Comparison",
+    description: "This multi-line chart compares four vegetation indices over time:\n• NDVI (green): Overall vegetation health and chlorophyll content\n• EVI (blue dashed): Enhanced index for dense canopy areas\n• NDRE (purple dashed): Nitrogen status and growth stage indicator\n• SAVI (yellow): Soil-adjusted vegetation measurement\nAll indices range from 0 to 1, with higher values indicating healthier vegetation.",
+    insight: "Compare indices to identify specific issues - diverging NDVI and NDRE may indicate nitrogen deficiency."
+  },
+  diseaseGrowth: {
+    title: "Disease Risk & Growth Tracking",
+    description: "This chart combines disease risk factors with crop growth progress. Blue bars show leaf wetness hours - prolonged wetness (>10 hours, marked by red line) creates favorable conditions for fungal diseases. The orange line tracks Cumulative Growing Degree Days (GDD), which measures heat accumulation for crop development stages.",
+    insight: "High leaf wetness + moderate temperatures (15-25 C) = highest fungal disease risk. Consider preventive fungicide application."
+  },
+};
+
+
 // Helper: Get Sentinel Token
 async function getSentinelToken() {
   const params = new URLSearchParams();
@@ -21,442 +91,330 @@ async function getSentinelToken() {
 
 // Helper: Get BBox
 function getBBox(lat, lng, radiusKm) {
-  const distance_km = radiusKm;
   const lat_degree_km = 111.0;
   const lng_degree_km = 111.0 * Math.cos(lat * (Math.PI / 180));
-  
-  const r_lat = (distance_km / 2) / lat_degree_km;
-  const r_lng = (distance_km / 2) / lng_degree_km;
-  
-  return [
-    lng - r_lng, // minX
-    lat - r_lat, // minY
-    lng + r_lng, // maxX
-    lat + r_lat  // maxY
-  ];
+  const r_lat = (radiusKm / 2) / lat_degree_km;
+  const r_lng = (radiusKm / 2) / lng_degree_km;
+  return [lng - r_lng, lat - r_lat, lng + r_lng, lat + r_lat];
 }
 
 // Helper: Fetch heatmap for a given index type
 async function fetchHeatmap(lat, lng, indexType, radius) {
   try {
     const token = await getSentinelToken();
-    const modelParam = indexType.toLowerCase();
-    const searchRadius = radius || 1.0;
-
-    const evalscript = `
-      //VERSION=3
-      function setup() {
-        return {
-          input: [{ 
-            bands: ["B02", "B03", "B04", "B05", "B08"], 
-            units: "DN" 
-          }],
-          output: { 
-            bands: 5, 
-            sampleType: "UINT16" 
-          }
-        };
-      }
-      function evaluatePixel(sample) { 
-        return [sample.B02, sample.B03, sample.B04, sample.B05, sample.B08]; 
-      }
-    `;
+    const evalscript = `//VERSION=3
+      function setup() { return { input: [{ bands: ["B02", "B03", "B04", "B05", "B08"], units: "DN" }], output: { bands: 5, sampleType: "UINT16" } }; }
+      function evaluatePixel(sample) { return [sample.B02, sample.B03, sample.B04, sample.B05, sample.B08]; }`;
 
     const endDate = new Date();
     const startDate = new Date();
     startDate.setDate(endDate.getDate() - 60);
 
-    const bbox = getBBox(lat, lng, searchRadius);
-    const sentinelResponse = await axios.post('https://services.sentinel-hub.com/api/v1/process', 
-      {
-        input: {
-          bounds: { bbox: bbox, properties: { crs: "http://www.opengis.net/def/crs/EPSG/0/4326" } },
-          data: [{ 
-            type: "sentinel-2-l1c", 
-            dataFilter: { timeRange: { from: startDate.toISOString(), to: endDate.toISOString() }, mosaickingOrder: "leastCC" } 
-          }]
-        },
-        output: { 
-          width: 256, 
-          height: 256, 
-          responses: [{ identifier: "default", format: { type: "image/tiff" } }] 
-        },
-        evalscript: evalscript
+    const bbox = getBBox(lat, lng, radius || 1.0);
+    const sentinelResponse = await axios.post('https://services.sentinel-hub.com/api/v1/process', {
+      input: {
+        bounds: { bbox, properties: { crs: "http://www.opengis.net/def/crs/EPSG/0/4326" } },
+        data: [{ type: "sentinel-2-l1c", dataFilter: { timeRange: { from: startDate.toISOString(), to: endDate.toISOString() }, mosaickingOrder: "leastCC" } }]
       },
-      {
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Accept': 'image/tiff' },
-        responseType: 'arraybuffer'
-      }
-    );
+      output: { width: 256, height: 256, responses: [{ identifier: "default", format: { type: "image/tiff" } }] },
+      evalscript
+    }, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Accept': 'image/tiff' },
+      responseType: 'arraybuffer'
+    });
 
     const form = new FormData();
     form.append('file', Buffer.from(sentinelResponse.data), { filename: 'sentinel_5band.tiff' });
+    const aiResponse = await axios.post(`${AI_BASE_URL}/predict?model_type=${indexType.toLowerCase()}`, form, { headers: { ...form.getHeaders() } });
 
-    const targetApiUrl = `${AI_BASE_URL}/predict?model_type=${modelParam}`;
-    const aiResponse = await axios.post(targetApiUrl, form, {
-      headers: { ...form.getHeaders() }
-    });
-
-    return {
-      success: true,
-      heatmap_base64: aiResponse.data.heatmap_base64,
-      statistics: aiResponse.data.statistics,
-      model_used: aiResponse.data.model_used
-    };
+    return { success: true, heatmap_base64: aiResponse.data.heatmap_base64, statistics: aiResponse.data.statistics };
   } catch (error) {
     console.error(`Error fetching ${indexType} heatmap:`, error.message);
     return null;
   }
 }
 
+
 export const generateReport = async (req, res) => {
   try {
     const userId = req.user?.uid || req.body.userId;
-    
-    if (!userId) {
-      return res.status(400).json({ error: "User ID is required" });
-    }
+    if (!userId) return res.status(400).json({ error: "User ID is required" });
 
-    // Fetch user data
     const userDoc = await db.collection('users').doc(userId).get();
-    if (!userDoc.exists) {
-      return res.status(404).json({ error: "User not found" });
-    }
+    if (!userDoc.exists) return res.status(404).json({ error: "User not found" });
     const userData = userDoc.data();
 
-    // Fetch user's fields
-    const fieldsRef = db.collection('users').doc(userId).collection('fields');
-    const fieldsSnapshot = await fieldsRef.get();
+    const fieldsSnapshot = await db.collection('users').doc(userId).collection('fields').get();
     const fields = [];
-    fieldsSnapshot.forEach(doc => {
-      fields.push({ id: doc.id, ...doc.data() });
-    });
+    fieldsSnapshot.forEach(doc => fields.push({ id: doc.id, ...doc.data() }));
+    if (fields.length === 0) return res.status(400).json({ error: "No fields found" });
 
-    if (fields.length === 0) {
-      return res.status(400).json({ error: "No fields found for this user" });
-    }
-
-    // Use selected field or first field
-    const fieldId = req.body.fieldId;
-    let selectedField = fields[0];
-    if (fieldId) {
-      const foundField = fields.find(f => f.id === fieldId);
-      if (foundField) {
-        selectedField = foundField;
-      }
-    }
-    const fieldLat = selectedField.lat;
-    const fieldLng = selectedField.lng;
-    const fieldRadius = selectedField.radius || 1.0;
-
-    if (!fieldLat || !fieldLng) {
-      return res.status(400).json({ error: "Field coordinates not found" });
-    }
+    let selectedField = fields.find(f => f.id === req.body.fieldId) || fields[0];
+    const { lat: fieldLat, lng: fieldLng, radius: fieldRadius = 1.0 } = selectedField;
+    if (!fieldLat || !fieldLng) return res.status(400).json({ error: "Field coordinates not found" });
 
     // Fetch analytics data
     let analyticsData = null;
     try {
-      const analyticsResponse = await axios.post(
-        "https://itvi-1234-newcollectordata.hf.space/generate_data",
-        {
-          lat: fieldLat,
-          lon: fieldLng,
-          field_name: selectedField.fieldName || "Field_1"
-        }
-      );
-      analyticsData = analyticsResponse.data;
-    } catch (error) {
-      console.error("Error fetching analytics data:", error.message);
-    }
+      const resp = await axios.post("https://itvi-1234-newcollectordata.hf.space/generate_data", {
+        lat: fieldLat, lon: fieldLng, field_name: selectedField.fieldName || "Field_1"
+      });
+      analyticsData = resp.data;
+    } catch (e) { console.error("Analytics fetch error:", e.message); }
 
-    // Fetch heatmaps for different indices
+    // Fetch heatmaps
     const heatmaps = {};
-    const indexTypes = ['NDVI', 'NDRE', 'EVI', 'SAVI'];
-    for (const indexType of indexTypes) {
-      const heatmapData = await fetchHeatmap(fieldLat, fieldLng, indexType, fieldRadius);
-      if (heatmapData) {
-        heatmaps[indexType] = heatmapData;
-      }
+    for (const idx of ['NDVI', 'NDRE', 'EVI', 'SAVI']) {
+      const data = await fetchHeatmap(fieldLat, fieldLng, idx, fieldRadius);
+      if (data) heatmaps[idx] = data;
     }
 
     // Create PDF
     const doc = new PDFDocument({ margin: 50, size: 'A4' });
-    
-    // Set response headers
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="agrivision-report-${Date.now()}.pdf"`);
-
-    // Pipe PDF to response
     doc.pipe(res);
 
-    // Helper function to add image from base64
-    const addBase64Image = async (base64String, x, y, width, height) => {
-      try {
-        const imageBuffer = Buffer.from(base64String, 'base64');
-        doc.image(imageBuffer, x, y, { width, height });
-      } catch (error) {
-        console.error("Error adding image:", error);
-        doc.text("Image not available", x, y);
-      }
+    // Helper functions
+    const addHeader = (text, y, size = 14) => {
+      doc.fontSize(size).fillColor('#16a34a').font('Helvetica-Bold').text(text, 50, y).font('Helvetica').fillColor('#000');
+      return y + size + 6;
     };
 
-    // Helper function to add section header
-    const addSectionHeader = (text, y, size = 12, xPos = 50) => {
-      doc.fontSize(size)
-         .fillColor('#22c55e')
-         .font('Helvetica-Bold')
-         .text(text, xPos, y)
-         .font('Helvetica')
-         .fillColor('#000000');
-      return y + size + 4; // Return position for content below header (compact spacing)
+    const addSubHeader = (text, y) => {
+      doc.fontSize(11).fillColor('#374151').font('Helvetica-Bold').text(text, 50, y).font('Helvetica');
+      return y + 16;
     };
 
-    // Helper: Get Google Maps Static Image for field
-    const getFieldMapImage = async () => {
-      try {
-        if (!selectedField.coordinates || selectedField.coordinates.length === 0) {
-          return null;
-        }
+    const drawLineChart = (data, yKey, x, y, w, h, color, label, yMin, yMax, drawAxes = true) => {
+      const values = data.map(d => d[yKey]).filter(v => !isNaN(v) && isFinite(v));
+      if (values.length < 2) return;
 
-        // Calculate bounds
-        const lats = selectedField.coordinates.map(c => c.lat || c[1]);
-        const lngs = selectedField.coordinates.map(c => c.lng || c[0]);
-        const minLat = Math.min(...lats);
-        const maxLat = Math.max(...lats);
-        const minLng = Math.min(...lngs);
-        const maxLng = Math.max(...lngs);
-        const centerLat = (minLat + maxLat) / 2;
-        const centerLng = (minLng + maxLng) / 2;
+      const minV = yMin !== undefined ? yMin : Math.min(...values);
+      const maxV = yMax !== undefined ? yMax : Math.max(...values);
+      const range = maxV - minV || 1;
 
-        // Create path string for polygon
-        const path = selectedField.coordinates
-          .map(c => `${c.lat || c[1]},${c.lng || c[0]}`)
-          .join('|');
-
-        // Google Maps Static API URL
-        const mapUrl = `https://maps.googleapis.com/maps/api/staticmap?` +
-          `center=${centerLat},${centerLng}&` +
-          `zoom=15&` +
-          `size=600x400&` +
-          `maptype=satellite&` +
-          `path=color:0x00FF00|weight:3|fillcolor:0x00FF0080|${path}&` +
-          `key=AIzaSyDKR_CVLRbV0lqjy_8JRWZAVDdO5Xl7jRk`;
-
-        const response = await axios.get(mapUrl, { responseType: 'arraybuffer' });
-        return Buffer.from(response.data);
-      } catch (error) {
-        console.error("Error fetching map image:", error.message);
-        return null;
+      // Axes (only draw if drawAxes is true)
+      if (drawAxes) {
+        doc.strokeColor('#e5e7eb').lineWidth(1).moveTo(x, y).lineTo(x, y + h).lineTo(x + w, y + h).stroke();
+        doc.fontSize(7).fillColor('#6b7280').text(maxV.toFixed(1), x - 25, y - 3).text(minV.toFixed(1), x - 25, y + h - 5);
       }
+
+      // Line
+      doc.strokeColor(color).lineWidth(2);
+      let first = true;
+      data.forEach((pt, i) => {
+        const v = pt[yKey];
+        if (isNaN(v) || !isFinite(v)) return;
+        const px = x + (i / (data.length - 1)) * w;
+        const py = y + h - ((v - minV) / range) * h;
+        if (first) { doc.moveTo(px, py); first = false; } else doc.lineTo(px, py);
+      });
+      doc.stroke();
+
+      // Label
+      if (label) doc.fontSize(8).fillColor(color).text(label, x + w - 80, y - 12);
     };
 
-    // Helper: Draw simple line chart
-    const drawSimpleChart = (data, xKey, yKey, x, y, width, height, label) => {
-      if (!data || data.length === 0) {
-        doc.fontSize(8)
-           .fillColor('#999999')
-           .text(`${label}: No data`, x, y);
-        return y + 30;
-      }
-      
-      const padding = 20;
-      const chartWidth = width - (padding * 2);
-      const chartHeight = height - (padding * 2);
-      const chartX = x + padding;
-      const chartY = y + padding + 15;
+    // Draw line on right Y-axis (for dual axis charts)
+    const drawLineChartRightAxis = (data, yKey, x, y, w, h, color, yMin, yMax) => {
+      const values = data.map(d => d[yKey]).filter(v => !isNaN(v) && isFinite(v));
+      if (values.length < 2) return;
 
-      // Find min/max values
-      const values = data.map(d => d[yKey] || 0).filter(v => !isNaN(v) && isFinite(v));
-      if (values.length === 0) {
-        doc.fontSize(8)
-           .fillColor('#999999')
-           .text(`${label}: Invalid data`, x, y);
-        return y + 30;
-      }
-      
-      const minVal = Math.min(...values);
-      const maxVal = Math.max(...values);
-      const range = maxVal - minVal || 1;
+      const minV = yMin !== undefined ? yMin : Math.min(...values);
+      const maxV = yMax !== undefined ? yMax : Math.max(...values);
+      const range = maxV - minV || 1;
 
-      // Draw chart title
-      doc.fontSize(9)
-         .fillColor('#22c55e')
-         .text(label, chartX, y + 5);
+      // Right Y-axis labels
+      doc.fontSize(7).fillColor('#6b7280').text(maxV.toFixed(0), x + w + 5, y - 3).text(minV.toFixed(0), x + w + 5, y + h - 5);
+
+      // Line
+      doc.strokeColor(color).lineWidth(2);
+      let first = true;
+      data.forEach((pt, i) => {
+        const v = pt[yKey];
+        if (isNaN(v) || !isFinite(v)) return;
+        const px = x + (i / (data.length - 1)) * w;
+        const py = y + h - ((v - minV) / range) * h;
+        if (first) { doc.moveTo(px, py); first = false; } else doc.lineTo(px, py);
+      });
+      doc.stroke();
+    };
+
+    const drawBarChart = (data, yKey, x, y, w, h, color, yMax) => {
+      const values = data.map(d => d[yKey]).filter(v => !isNaN(v) && isFinite(v));
+      if (values.length < 2) return;
+      const maxV = yMax !== undefined ? yMax : Math.max(...values) || 1;
+      const barW = Math.max(2, Math.floor(w / data.length) - 1);
+
+      data.forEach((pt, i) => {
+        const v = pt[yKey] || 0;
+        const barH = (v / maxV) * h;
+        const px = x + (i / data.length) * w;
+        doc.rect(px, y + h - barH, barW, barH).fillColor(color).fill();
+      });
+    };
+
+    // Draw area chart (filled area under line) - like VPD in Analytics
+    const drawAreaChart = (data, yKey, x, y, w, h, strokeColor, fillColor, yMin, yMax) => {
+      const values = data.map(d => d[yKey]).filter(v => !isNaN(v) && isFinite(v));
+      if (values.length < 2) return;
+
+      const minV = yMin !== undefined ? yMin : 0;
+      const maxV = yMax !== undefined ? yMax : Math.max(...values);
+      const range = maxV - minV || 1;
 
       // Draw axes
-      doc.strokeColor('#cccccc')
-         .lineWidth(1)
-         .moveTo(chartX, chartY)
-         .lineTo(chartX, chartY + chartHeight)
-         .lineTo(chartX + chartWidth, chartY + chartHeight)
-         .stroke();
+      doc.strokeColor('#e5e7eb').lineWidth(1).moveTo(x, y).lineTo(x, y + h).lineTo(x + w, y + h).stroke();
+      doc.fontSize(7).fillColor('#6b7280').text(maxV.toFixed(1), x - 25, y - 3).text(minV.toFixed(1), x - 25, y + h - 5);
 
-      // Draw min/max labels
-      doc.fontSize(7)
-         .fillColor('#999999')
-         .text(maxVal.toFixed(1), chartX - 25, chartY - 5)
-         .text(minVal.toFixed(1), chartX - 25, chartY + chartHeight - 5);
+      // Build path for filled area
+      const points = [];
+      data.forEach((pt, i) => {
+        const v = pt[yKey];
+        if (isNaN(v) || !isFinite(v)) return;
+        const px = x + (i / (data.length - 1)) * w;
+        const py = y + h - ((v - minV) / range) * h;
+        points.push({ x: px, y: py });
+      });
 
-      // Draw data line
-      if (data.length > 1) {
-        doc.strokeColor('#22c55e')
-           .lineWidth(2);
-        
-        let firstPoint = true;
-        data.forEach((point, idx) => {
-          const val = point[yKey] || 0;
-          if (isNaN(val) || !isFinite(val)) return;
-          
-          const normalizedVal = (val - minVal) / range;
-          const px = chartX + (idx / (data.length - 1)) * chartWidth;
-          const py = chartY + chartHeight - (normalizedVal * chartHeight);
-          
-          if (firstPoint) {
-            doc.moveTo(px, py);
-            firstPoint = false;
-          } else {
-            doc.lineTo(px, py);
-          }
-        });
-        doc.stroke();
-      }
+      if (points.length < 2) return;
 
-      return y + height + 15;
+      // Draw filled area
+      doc.moveTo(points[0].x, y + h);
+      points.forEach(p => doc.lineTo(p.x, p.y));
+      doc.lineTo(points[points.length - 1].x, y + h);
+      doc.fillColor(fillColor).fill();
+
+      // Draw stroke line on top
+      doc.strokeColor(strokeColor).lineWidth(2);
+      doc.moveTo(points[0].x, points[0].y);
+      points.slice(1).forEach(p => doc.lineTo(p.x, p.y));
+      doc.stroke();
     };
 
-    // PAGE 1: Header + Farmer Details + Field Info + Map (Compact)
-    let yPos = 40;
-    
-    // Logo and Header
-    doc.rect(250, yPos, 60, 60)
-       .fillColor('#22c55e')
-       .fill('#22c55e')
-       .fillColor('#ffffff')
-       .fontSize(18)
-       .text('AV', 265, yPos + 20)
-       .fillColor('#000000');
-    
-    yPos += 65;
-    doc.fontSize(22)
-       .fillColor('#22c55e')
-       .text('AgriVision Report', 50, yPos, { align: 'center' })
-       .fontSize(9)
-       .fillColor('#666666')
-       .text(`Generated: ${new Date().toLocaleDateString()} | Field: ${selectedField.fieldName || 'N/A'}`, 50, yPos + 22, { align: 'center' });
-    
-    yPos += 35;
 
-    // Two column layout: Left - Farmer Details, Right - Field Info
-    const sectionStartY = yPos;
-    
-    // Left Column Header
-    const leftHeaderY = addSectionHeader('Farmer Details', sectionStartY, 12, 50);
-    const leftContentY = leftHeaderY + 3; // Compact gap after header
-    const lineHeight = 11; // Compact but readable line spacing
-    doc.fontSize(9)
-       .text(`Name: ${userData.firstName || 'N/A'} ${userData.lastName || ''}`, 50, leftContentY)
-       .text(`Email: ${userData.email || 'N/A'}`, 50, leftContentY + lineHeight)
-       .text(`Phone: ${userData.phone || 'N/A'}`, 50, leftContentY + (lineHeight * 2))
-       .text(`Address: ${userData.farmAddress || 'N/A'}`, 50, leftContentY + (lineHeight * 3))
-       .text(`Total Acres: ${userData.acres || 'N/A'}`, 50, leftContentY + (lineHeight * 4));
-
-    // Right Column Header (same Y position as left)
-    const rightHeaderY = addSectionHeader('Field Information', sectionStartY, 12, 300);
-    const rightContentY = rightHeaderY + 3; // Compact gap after header
-    doc.fontSize(9)
-       .text(`Field: ${selectedField.fieldName || 'N/A'}`, 300, rightContentY)
-       .text(`Crop: ${selectedField.cropName || 'N/A'}`, 300, rightContentY + lineHeight)
-       .text(`Area: ${selectedField.area || 'N/A'}`, 300, rightContentY + (lineHeight * 2))
-       .text(`Sowing: ${selectedField.sowingDate || 'N/A'}`, 300, rightContentY + (lineHeight * 3))
-       .text(`Location: ${fieldLat.toFixed(4)}, ${fieldLng.toFixed(4)}`, 300, rightContentY + (lineHeight * 4));
-
-    // Field Map Image - Start after both columns (use the bottom of the content)
-    const bottomOfColumns = Math.max(leftContentY + (lineHeight * 5), rightContentY + (lineHeight * 5));
-    yPos = bottomOfColumns + 15; // Compact spacing before map section
-    const mapHeaderY = addSectionHeader('Field Map', yPos, 12);
-    const mapImageY = mapHeaderY + 3; // Compact gap after header
-    
-    const mapImage = await getFieldMapImage();
-    if (mapImage) {
+    // Get field map image
+    const getFieldMapImage = async () => {
       try {
-        doc.image(mapImage, 50, mapImageY, { width: 500, height: 300, fit: [500, 300] });
-        yPos = mapImageY + 310;
-      } catch (error) {
-        doc.fontSize(9)
-           .fillColor('#999999')
-           .text('Map image unavailable', 50, mapImageY);
-        yPos = mapImageY + 30;
-      }
+        if (!selectedField.coordinates?.length) return null;
+        const lats = selectedField.coordinates.map(c => c.lat || c[1]);
+        const lngs = selectedField.coordinates.map(c => c.lng || c[0]);
+        const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+        const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+        const path = selectedField.coordinates.map(c => `${c.lat || c[1]},${c.lng || c[0]}`).join('|');
+        const mapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${centerLat},${centerLng}&zoom=15&size=600x400&maptype=satellite&path=color:0x00FF00|weight:3|fillcolor:0x00FF0080|${path}&key=AIzaSyDKR_CVLRbV0lqjy_8JRWZAVDdO5Xl7jRk`;
+        const resp = await axios.get(mapUrl, { responseType: 'arraybuffer' });
+        return Buffer.from(resp.data);
+      } catch (e) { return null; }
+    };
+
+    // ==================== PAGE 1: COVER ====================
+    let yPos = 50;
+    doc.rect(220, yPos, 100, 100).fillColor('#16a34a').fill();
+    doc.fillColor('#fff').fontSize(36).text('AV', 245, yPos + 32);
+    yPos += 120;
+
+    doc.fontSize(28).fillColor('#16a34a').text('AgriVision', 50, yPos, { align: 'center' });
+    doc.fontSize(16).fillColor('#374151').text('Comprehensive Field Analysis Report', 50, yPos + 35, { align: 'center' });
+    yPos += 80;
+
+    doc.fontSize(12).fillColor('#6b7280')
+      .text(`Field: ${selectedField.fieldName || 'N/A'}`, 50, yPos, { align: 'center' })
+      .text(`Crop: ${selectedField.cropName || 'N/A'}`, 50, yPos + 18, { align: 'center' })
+      .text(`Generated: ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`, 50, yPos + 36, { align: 'center' });
+    yPos += 80;
+
+    // Farmer & Field Info Box
+    doc.rect(50, yPos, 495, 120).fillColor('#f0fdf4').fill();
+    doc.fontSize(12).fillColor('#166534').font('Helvetica-Bold').text('Report Summary', 70, yPos + 15).font('Helvetica');
+    doc.fontSize(10).fillColor('#374151')
+      .text(`Farmer: ${userData.firstName || ''} ${userData.lastName || ''}`, 70, yPos + 38)
+      .text(`Email: ${userData.email || 'N/A'}`, 300, yPos + 38)
+      .text(`Phone: ${userData.phone || 'N/A'}`, 70, yPos + 55)
+      .text(`Farm Address: ${userData.farmAddress || 'N/A'}`, 300, yPos + 55)
+      .text(`Field Area: ${selectedField.area || 'N/A'}`, 70, yPos + 72)
+      .text(`Sowing Date: ${selectedField.sowingDate || 'N/A'}`, 300, yPos + 72)
+      .text(`Coordinates: ${fieldLat.toFixed(5)}, ${fieldLng.toFixed(5)}`, 70, yPos + 89);
+    yPos += 140;
+
+    // Field Map
+    yPos = addHeader('Field Location', yPos);
+    const mapImg = await getFieldMapImage();
+    if (mapImg) {
+      doc.image(mapImg, 50, yPos, { width: 495, height: 250 });
+      yPos += 260;
+      doc.fontSize(8).fillColor('#6b7280').text('Satellite imagery showing field boundary (green outline)', 50, yPos);
     } else {
-      doc.fontSize(9)
-         .fillColor('#999999')
-         .text('Field map coordinates not available', 50, mapImageY);
-      yPos = mapImageY + 30;
+      doc.fontSize(10).fillColor('#9ca3af').text('Field map not available', 50, yPos);
     }
 
-    // If we're past page 1, add new page
-    if (yPos > 700) {
-      doc.addPage();
-      yPos = 40;
-    }
 
-    // Heat Maps (Small, side by side)
-    yPos += 15; // Compact spacing before heat maps section
-    const heatmapHeaderY = addSectionHeader('Vegetation Index Heat Maps', yPos, 12);
-    const heatmapIndexTypes = Object.keys(heatmaps);
-    const heatmapWidth = 240;
-    const heatmapHeight = 180;
-    let heatmapX = 50;
-    let heatmapRowY = heatmapHeaderY + 8; // Compact gap after header
-    
-    for (let i = 0; i < Math.min(heatmapIndexTypes.length, 4); i++) {
-      const indexType = heatmapIndexTypes[i];
-      const heatmapData = heatmaps[indexType];
-      
-      if (i > 0 && i % 2 === 0) {
-        heatmapRowY += heatmapHeight + 35; // Compact space for label and stat
-        heatmapX = 50;
-        if (heatmapRowY + heatmapHeight > 700) {
-          doc.addPage();
-          heatmapRowY = 50;
-        }
-      }
-      
-      if (heatmapData && heatmapData.heatmap_base64) {
-        try {
-          // Add label above image with proper spacing
-          const labelY = heatmapRowY - 10;
-          doc.fontSize(9)
-             .fillColor('#22c55e')
-             .font('Helvetica-Bold')
-             .text(indexType, heatmapX, labelY)
-             .font('Helvetica');
-          
-          const imageBuffer = Buffer.from(heatmapData.heatmap_base64, 'base64');
-          doc.image(imageBuffer, heatmapX, heatmapRowY, { width: heatmapWidth, height: heatmapHeight, fit: [heatmapWidth, heatmapHeight] });
-          
-          // Add key stat below image with proper spacing
-          if (heatmapData.statistics) {
-            const maxKey = Object.keys(heatmapData.statistics).reduce((a, b) => 
-              heatmapData.statistics[a] > heatmapData.statistics[b] ? a : b
-            );
-            doc.fontSize(7)
-               .fillColor('#666666')
-               .text(`${maxKey}: ${heatmapData.statistics[maxKey]?.toFixed(2) || 'N/A'}`, heatmapX, heatmapRowY + heatmapHeight + 5);
-          }
-        } catch (error) {
-          doc.fontSize(8)
-             .fillColor('#999999')
-             .text(`${indexType}: N/A`, heatmapX, heatmapRowY);
-        }
-      }
-      
-      heatmapX += heatmapWidth + 20;
-    }
-
-    // PAGE 2: Analytics Graphs + Disease/Soil Analysis
+    // ==================== PAGE 2-3: HEAT MAPS ====================
     doc.addPage();
     yPos = 40;
+    doc.fontSize(22).fillColor('#16a34a').text('Vegetation Index Heat Maps', 50, yPos, { align: 'center' });
+    doc.fontSize(10).fillColor('#6b7280').text('Satellite-based crop health analysis from Sentinel-2 imagery', 50, yPos + 28, { align: 'center' });
+    yPos += 60;
+
+    for (const indexType of Object.keys(heatmaps)) {
+      if (yPos > 520) { doc.addPage(); yPos = 40; }
+
+      const hm = heatmaps[indexType];
+      const info = INDEX_DESCRIPTIONS[indexType];
+
+      // Title & Description
+      doc.fontSize(13).fillColor('#16a34a').font('Helvetica-Bold').text(info.title, 50, yPos).font('Helvetica');
+      yPos += 18;
+      doc.fontSize(9).fillColor('#4b5563').text(info.description, 50, yPos, { width: 495 });
+      yPos += 35;
+
+      if (hm?.heatmap_base64) {
+        // Image
+        const imgBuf = Buffer.from(hm.heatmap_base64, 'base64');
+        doc.image(imgBuf, 50, yPos, { width: 180, height: 135 });
+
+        // Stats
+        let sx = 250, sy = yPos;
+        doc.fontSize(10).fillColor('#16a34a').font('Helvetica-Bold').text('Analysis Results:', sx, sy).font('Helvetica');
+        sy += 16;
+        if (hm.statistics) {
+          const maxKey = Object.entries(hm.statistics).reduce((a, b) => b[1] > a[1] ? b : a, ['', 0])[0];
+          Object.entries(hm.statistics).forEach(([k, v]) => {
+            const isMax = k === maxKey;
+            doc.fontSize(9).fillColor(isMax ? '#16a34a' : '#374151')
+              .text(`• ${k}: ${v.toFixed(1)}%${isMax ? ' (Dominant)' : ''}`, sx, sy);
+            sy += 13;
+          });
+        }
+
+        // Interpretation
+        sy += 8;
+        doc.fontSize(9).fillColor('#1f2937').font('Helvetica-Bold').text('Value Interpretation:', sx, sy).font('Helvetica');
+        sy += 14;
+        Object.values(info.interpretation).forEach(int => {
+          doc.fontSize(8).fillColor('#6b7280').text(`${int.range}: ${int.meaning}`, sx, sy, { width: 280 });
+          sy += 11;
+        });
+
+        yPos += 150;
+      } else {
+        doc.fontSize(9).fillColor('#9ca3af').text('Heatmap data not available', 50, yPos);
+        yPos += 20;
+      }
+
+      // Separator
+      doc.strokeColor('#e5e7eb').lineWidth(1).moveTo(50, yPos).lineTo(545, yPos).stroke();
+      yPos += 15;
+    }
+
+
+    // ==================== PAGE 4-5: ANALYTICS CHARTS ====================
+    doc.addPage();
+    yPos = 40;
+    doc.fontSize(22).fillColor('#16a34a').text('Weather & Crop Analytics', 50, yPos, { align: 'center' });
+    doc.fontSize(10).fillColor('#6b7280').text('Historical data analysis for precision farming decisions', 50, yPos + 28, { align: 'center' });
+    yPos += 60;
 
     // Process analytics data
     let processedData = [];
@@ -464,132 +422,244 @@ export const generateReport = async (req, res) => {
       const lines = analyticsData.trim().split("\n");
       const headers = lines[0].split(",");
       const rawData = lines.slice(1).map(line => {
-        const values = line.split(",");
+        const vals = line.split(",");
         const obj = {};
-        headers.forEach((header, index) => {
-          const val = values[index];
-          obj[header.trim()] = isNaN(val) ? val : parseFloat(val);
-        });
+        headers.forEach((h, i) => { obj[h.trim()] = isNaN(vals[i]) ? vals[i] : parseFloat(vals[i]); });
         return obj;
       });
 
-      // Calculate soil moisture (same logic as frontend)
-      let currentMoisture = 50;
+      let moisture = 50;
       processedData = rawData.map((d, i) => {
-        if (d.precipitation > 0) {
-          currentMoisture += d.precipitation * 2;
-        } else {
-          currentMoisture -= (d.vpd * 0.8) + 0.5;
+        if (d.precipitation > 0) moisture += d.precipitation * 2;
+        else moisture -= (d.vpd * 0.8) + 0.5;
+        moisture = Math.max(10, Math.min(90, moisture));
+
+        // Smoothed NDVI
+        let ndvi_smooth = d.ndvi;
+        if (i >= 3 && i < rawData.length - 3) {
+          let sum = 0;
+          for (let j = -3; j <= 3; j++) sum += rawData[i + j].ndvi || 0;
+          ndvi_smooth = sum / 7;
         }
-        currentMoisture = Math.max(10, Math.min(90, currentMoisture));
 
-        // Cumulative GDD
-        const prevGDD = i > 0 ? rawData[i-1].cum_gdd || 0 : 0;
-        const cum_gdd = prevGDD + (d.gdd || 0);
-
-        return {
-          ...d,
-          dateShort: d.date ? d.date.substring(5) : '',
-          soil_moisture: d.soil_moisture || parseFloat(currentMoisture.toFixed(1)),
-          cum_gdd: cum_gdd
-        };
+        return { ...d, soil_moisture: d.soil_moisture || moisture, ndvi_smooth, cum_gdd: (i > 0 ? rawData[i - 1].cum_gdd || 0 : 0) + (d.gdd || 0) };
       });
     }
 
     if (processedData.length > 0) {
-      // Calculate stats
       const avgNDVI = processedData.reduce((s, d) => s + (d.ndvi || 0), 0) / processedData.length;
       const totalRain = processedData.reduce((s, d) => s + (d.precipitation || 0), 0);
+      const avgTemp = processedData.reduce((s, d) => s + (d.temperature || d.temperature_max || 0), 0) / processedData.length;
       const stressDays = processedData.filter(d => d.vpd > 1.5).length;
       const diseaseDays = processedData.filter(d => (d.leaf_wetness_hours || 0) > 10).length;
 
-      // Analytics Summary Stats
-      const analyticsHeaderY = addSectionHeader('Analytics Summary', yPos, 12);
-      const analyticsContentY = analyticsHeaderY + 3;
-      doc.fontSize(9)
-         .text(`Avg NDVI: ${avgNDVI.toFixed(2)} | Total Rain: ${totalRain.toFixed(0)}mm | Stress Days: ${stressDays} | Disease Risk: ${diseaseDays}`, 50, analyticsContentY, { width: 500 });
-      yPos = analyticsContentY + 20;
+      // KPI Summary Box
+      doc.rect(50, yPos, 495, 65).fillColor('#f0fdf4').fill();
+      doc.fontSize(10).fillColor('#166534').font('Helvetica-Bold').text('Key Performance Indicators', 60, yPos + 8).font('Helvetica');
+      doc.fontSize(9).fillColor('#374151')
+        .text(`Avg NDVI: ${avgNDVI.toFixed(3)}`, 60, yPos + 28)
+        .text(`Total Rain: ${totalRain.toFixed(1)} mm`, 180, yPos + 28)
+        .text(`Avg Temp: ${avgTemp.toFixed(1)} C`, 300, yPos + 28)
+        .text(`Stress Days: ${stressDays}`, 420, yPos + 28)
+        .text(`Disease Risk: ${diseaseDays} days`, 60, yPos + 45)
+        .text(`Data Points: ${processedData.length}`, 180, yPos + 45);
+      yPos += 80;
 
-      // Charts - Two columns
-      const chartWidth = 240;
-      const chartHeight = 120;
-      
-      // Chart 1: NDVI Trend
-      yPos = drawSimpleChart(
-        processedData.slice(0, 30), // Last 30 data points
-        'dateShort',
-        'ndvi',
-        50,
-        yPos,
-        chartWidth,
-        chartHeight,
-        'NDVI Trend'
-      );
+      // Use all data like Analytics page does (full 6 months)
+      const chartData = processedData;
+      const chartW = 400, chartH = 140;
 
-      // Chart 2: Precipitation
-      yPos = drawSimpleChart(
-        processedData.slice(0, 30),
-        'dateShort',
-        'precipitation',
-        300,
-        yPos - chartHeight - 15,
-        chartWidth,
-        chartHeight,
-        'Precipitation'
-      );
+      // Calculate dynamic ranges for all charts based on actual data
+      const vpdValues = chartData.map(d => d.vpd || 0).filter(v => !isNaN(v) && isFinite(v));
+      const tempValues = chartData.map(d => d.temperature_max || 0).filter(v => !isNaN(v) && isFinite(v));
+      const gddValues = chartData.map(d => d.cum_gdd || 0).filter(v => !isNaN(v) && isFinite(v));
+      const wetValues = chartData.map(d => d.leaf_wetness_hours || 0).filter(v => !isNaN(v) && isFinite(v));
 
-      // Chart 3: Soil Moisture
-      yPos = drawSimpleChart(
-        processedData.slice(0, 30),
-        'dateShort',
-        'soil_moisture',
-        50,
-        yPos,
-        chartWidth,
-        chartHeight,
-        'Soil Moisture'
-      );
+      // VPD typically ranges 0-2, round up to nearest 0.2
+      const vpdMax = Math.ceil(Math.max(...vpdValues, 1.6) * 5) / 5;
+      // Temperature - use actual min/max
+      const tempMin = Math.floor(Math.min(...tempValues) / 5) * 5;
+      const tempMax = Math.ceil(Math.max(...tempValues) / 5) * 5;
+      // GDD - cumulative, starts from min and goes to max
+      const gddMin = Math.floor(Math.min(...gddValues) / 500) * 500;
+      const gddMax = Math.ceil(Math.max(...gddValues) / 500) * 500;
+      // Wetness - typically 0-20 hours
+      const wetMax = Math.max(Math.ceil(Math.max(...wetValues) / 5) * 5, 20);
 
-      // Chart 4: VPD (Water Stress)
-      yPos = drawSimpleChart(
-        processedData.slice(0, 30),
-        'dateShort',
-        'vpd',
-        300,
-        yPos - chartHeight - 15,
-        chartWidth,
-        chartHeight,
-        'Water Stress (VPD)'
-      );
-    }
+      // ===== CHART 1: Soil Moisture vs Rainfall =====
+      doc.fontSize(12).fillColor('#16a34a').font('Helvetica-Bold').text('1. Soil Moisture vs Rainfall Analysis', 50, yPos).font('Helvetica');
+      yPos += 20;
+      doc.fontSize(9).fillColor('#6b7280').text('Shows relationship between rainfall events (blue bars) and soil moisture levels (blue line). Optimal soil moisture for most crops is 40-70%.', 50, yPos, { width: 495 });
+      yPos += 30;
 
-    // Disease Prediction & Soil Analysis (Compact)
-    yPos += 20;
-    if (yPos > 600) {
+      drawBarChart(chartData, 'precipitation', 50, yPos, chartW, chartH, '#93c5fd');
+      drawLineChart(chartData, 'soil_moisture', 50, yPos, chartW, chartH, '#0ea5e9', '', 0, 100, true);
+      yPos += chartH + 15;
+
+      doc.fontSize(8).fillColor('#93c5fd').text('Blue Bars: Rainfall (mm)', 50, yPos);
+      doc.fillColor('#0ea5e9').text('Blue Line: Soil Moisture (%)', 200, yPos);
+      yPos += 15;
+      doc.fontSize(8).fillColor('#16a34a').font('Helvetica-Bold').text('Insight: ', 50, yPos).font('Helvetica');
+      doc.fillColor('#374151').text('Irrigate when moisture drops below 40% and no rain is forecasted.', 95, yPos);
+      yPos += 35;
+
+      // ===== CHART 2: VPD & Temperature =====
+      doc.fontSize(12).fillColor('#16a34a').font('Helvetica-Bold').text('2. Water Stress (VPD) and Temperature', 50, yPos).font('Helvetica');
+      yPos += 20;
+      doc.fontSize(9).fillColor('#6b7280').text('VPD (Vapor Pressure Deficit) measures atmospheric dryness. Values above 1.5 kPa indicate high water stress conditions.', 50, yPos, { width: 495 });
+      yPos += 30;
+
+      // VPD as area chart on left axis (like Analytics page)
+      drawAreaChart(chartData, 'vpd', 50, yPos, chartW, chartH, '#f97316', '#ffedd5', 0, vpdMax);
+      // Temperature on right axis (dynamic scale)
+      drawLineChartRightAxis(chartData, 'temperature_max', 50, yPos, chartW, chartH, '#ef4444', tempMin, tempMax);
+
+      // Reference line at VPD 1.5
+      const refY = yPos + chartH - (1.5 / vpdMax) * chartH;
+      doc.strokeColor('#dc2626').lineWidth(1).dash(3, { space: 3 }).moveTo(50, refY).lineTo(450, refY).stroke().undash();
+      doc.fontSize(7).fillColor('#dc2626').text('High Stress (1.5)', 455, refY - 4);
+      yPos += chartH + 15;
+
+      doc.fontSize(8).fillColor('#f97316').text('Orange Area: VPD (kPa) - Left', 50, yPos);
+      doc.fillColor('#ef4444').text('Red Line: Temperature (C) - Right', 220, yPos);
+      yPos += 15;
+      doc.fontSize(8).fillColor('#16a34a').font('Helvetica-Bold').text('Insight: ', 50, yPos).font('Helvetica');
+      doc.fillColor('#374151').text('Days with VPD > 1.5 kPa require increased irrigation or shade protection.', 95, yPos);
+
+      // ===== PAGE 2: Charts 3 & 4 =====
       doc.addPage();
       yPos = 40;
+
+      // ===== CHART 3: Crop Health Indices =====
+      doc.fontSize(12).fillColor('#16a34a').font('Helvetica-Bold').text('3. Crop Health Indices Comparison', 50, yPos).font('Helvetica');
+      yPos += 20;
+      doc.fontSize(9).fillColor('#6b7280').text('Compares four vegetation indices over time. All indices range from 0 to 1, with higher values indicating healthier vegetation.', 50, yPos, { width: 495 });
+      yPos += 30;
+
+      drawLineChart(chartData, 'ndvi_smooth', 50, yPos, chartW, chartH, '#16a34a', '', 0, 1, true);
+      drawLineChart(chartData, 'evi', 50, yPos, chartW, chartH, '#2563eb', '', 0, 1, false);
+      drawLineChart(chartData, 'ndre', 50, yPos, chartW, chartH, '#9333ea', '', 0, 1, false);
+      drawLineChart(chartData, 'savi', 50, yPos, chartW, chartH, '#ca8a04', '', 0, 1, false);
+      yPos += chartH + 15;
+
+      doc.fontSize(8).fillColor('#16a34a').text('Green: NDVI (Health)', 50, yPos);
+      doc.fillColor('#2563eb').text('Blue: EVI (Enhanced)', 150, yPos);
+      doc.fillColor('#9333ea').text('Purple: NDRE (Nitrogen)', 250, yPos);
+      doc.fillColor('#ca8a04').text('Yellow: SAVI (Soil-adj)', 370, yPos);
+      yPos += 15;
+      doc.fontSize(8).fillColor('#16a34a').font('Helvetica-Bold').text('Insight: ', 50, yPos).font('Helvetica');
+      doc.fillColor('#374151').text('Diverging NDVI and NDRE trends may indicate nitrogen deficiency in your crops.', 95, yPos);
+      yPos += 40;
+
+      // ===== CHART 4: Disease Risk & Growth =====
+      doc.fontSize(12).fillColor('#16a34a').font('Helvetica-Bold').text('4. Disease Risk and Growth Tracking', 50, yPos).font('Helvetica');
+      yPos += 20;
+      doc.fontSize(9).fillColor('#6b7280').text('Leaf wetness hours (bars) indicate fungal disease risk. GDD line tracks cumulative heat units for crop development.', 50, yPos, { width: 495 });
+      yPos += 30;
+
+      // Draw axes first
+      doc.strokeColor('#e5e7eb').lineWidth(1).moveTo(50, yPos).lineTo(50, yPos + chartH).lineTo(450, yPos + chartH).stroke();
+      doc.fontSize(7).fillColor('#6b7280').text(wetMax.toString(), 25, yPos - 3).text('0', 35, yPos + chartH - 5);
+
+      // Leaf wetness bars with explicit max scale
+      drawBarChart(chartData, 'leaf_wetness_hours', 50, yPos, chartW, chartH, '#a5b4fc', wetMax);
+
+      // GDD on right axis (dynamic scale)
+      drawLineChartRightAxis(chartData, 'cum_gdd', 50, yPos, chartW, chartH, '#f59e0b', gddMin, gddMax);
+
+      // Disease threshold line at 10 hours
+      const diseaseRefY = yPos + chartH - (10 / wetMax) * chartH;
+      doc.strokeColor('#ef4444').lineWidth(1).dash(3, { space: 3 }).moveTo(50, diseaseRefY).lineTo(450, diseaseRefY).stroke().undash();
+      doc.fontSize(7).fillColor('#ef4444').text('Disease Risk (10h)', 455, diseaseRefY - 4);
+      yPos += chartH + 15;
+
+      doc.fontSize(8).fillColor('#a5b4fc').text('Blue Bars: Leaf Wetness (hrs) - Left', 50, yPos);
+      doc.fillColor('#f59e0b').text('Orange Line: Cumulative GDD - Right', 230, yPos);
+      yPos += 15;
+      doc.fontSize(8).fillColor('#16a34a').font('Helvetica-Bold').text('Insight: ', 50, yPos).font('Helvetica');
+      doc.fillColor('#374151').text('High leaf wetness (>10h) + moderate temps (15-25 C) = highest fungal disease risk.', 95, yPos);
+      yPos += 30;
+
+    } else {
+      doc.fontSize(11).fillColor('#9ca3af').text('Analytics data not available for this field.', 50, yPos);
+      doc.fontSize(9).text('Weather and crop analytics require field coordinates and API connectivity.', 50, yPos + 18);
     }
 
-    const diseaseHeaderY = addSectionHeader('Disease Prediction & Soil Analysis', yPos, 12);
-    const diseaseContentY = diseaseHeaderY + 3;
-    doc.fontSize(9)
-       .fillColor('#666666')
-       .text('Disease prediction and soil analysis data will be included when available.', 50, diseaseContentY)
-       .text('Use the Disease Detection and Soil Analysis features to generate data.', 50, diseaseContentY + 12);
+
+    // ==================== FINAL PAGE: RECOMMENDATIONS ====================
+    doc.addPage();
+    yPos = 40;
+    doc.fontSize(22).fillColor('#16a34a').text('Recommendations & Action Items', 50, yPos, { align: 'center' });
+    yPos += 50;
+
+    const recommendations = [];
+
+    // Generate smart recommendations
+    if (heatmaps.NDVI?.statistics) {
+      const stats = heatmaps.NDVI.statistics;
+      const healthyPct = (stats['Healthy'] || 0) + (stats['Overgrown'] || 0);
+      const stressedPct = (stats['Moderately Diseased'] || 0) + (stats['Highly Diseased'] || 0);
+
+      if (healthyPct > 70) {
+        recommendations.push({ type: 'success', title: 'Excellent Crop Health', text: `${healthyPct.toFixed(0)}% of your field shows healthy vegetation. Continue current practices and maintain regular monitoring.` });
+      } else if (stressedPct > 30) {
+        recommendations.push({ type: 'warning', title: 'Stress Areas Detected', text: `${stressedPct.toFixed(0)}% of field shows stress. Investigate affected zones for water, nutrient, or pest issues. Consider targeted intervention.` });
+      }
+    }
+
+    if (processedData.length > 0) {
+      const recentVPD = processedData.slice(-7).reduce((s, d) => s + (d.vpd || 0), 0) / 7;
+      const recentRain = processedData.slice(-7).reduce((s, d) => s + (d.precipitation || 0), 0);
+      const recentWetness = processedData.slice(-7).filter(d => (d.leaf_wetness_hours || 0) > 10).length;
+
+      if (recentVPD > 1.5) {
+        recommendations.push({ type: 'warning', title: 'Water Stress Alert', text: `Average VPD of ${recentVPD.toFixed(2)} kPa in last 7 days indicates water stress. Increase irrigation frequency or consider mulching to retain soil moisture.` });
+      }
+      if (recentRain < 5) {
+        recommendations.push({ type: 'info', title: 'Low Rainfall Period', text: `Only ${recentRain.toFixed(1)}mm rainfall in the past week. Monitor soil moisture closely and irrigate if levels drop below 40%.` });
+      }
+      if (recentWetness >= 3) {
+        recommendations.push({ type: 'warning', title: 'Disease Risk Alert', text: `${recentWetness} days with high leaf wetness (>10 hrs) in the past week. Consider preventive fungicide application, especially for susceptible crops.` });
+      }
+    }
+
+    if (recommendations.length === 0) {
+      recommendations.push({ type: 'info', title: 'Continue Monitoring', text: 'No immediate concerns detected. Continue regular field monitoring using the AgriVision dashboard for real-time updates.' });
+    }
+
+    // Display recommendations
+    recommendations.forEach(rec => {
+      const bg = rec.type === 'success' ? '#f0fdf4' : rec.type === 'warning' ? '#fef3c7' : '#eff6ff';
+      const border = rec.type === 'success' ? '#16a34a' : rec.type === 'warning' ? '#f59e0b' : '#3b82f6';
+
+      doc.rect(50, yPos, 495, 60).fillColor(bg).fill();
+      doc.rect(50, yPos, 4, 60).fillColor(border).fill();
+      doc.fontSize(11).fillColor('#1f2937').font('Helvetica-Bold').text(rec.title, 65, yPos + 12).font('Helvetica');
+      doc.fontSize(9).fillColor('#4b5563').text(rec.text, 65, yPos + 30, { width: 465 });
+      yPos += 70;
+    });
+
+    // Notes
+    yPos += 20;
+    doc.fontSize(12).fillColor('#16a34a').font('Helvetica-Bold').text('Technical Notes', 50, yPos).font('Helvetica');
+    yPos += 18;
+    doc.fontSize(8).fillColor('#6b7280')
+      .text('• Vegetation indices are calculated from Sentinel-2 satellite imagery (last 60 days, least cloud cover selected)', 50, yPos)
+      .text('• Weather data sourced from meteorological stations and satellite observations via Open-Meteo API', 50, yPos + 12)
+      .text('• VPD (Vapor Pressure Deficit) values above 1.5 kPa indicate conditions where plants struggle to maintain transpiration', 50, yPos + 24)
+      .text('• GDD (Growing Degree Days) calculated using base temperature of 10 C for most crops', 50, yPos + 36)
+      .text('• For best results, generate reports weekly to track crop development trends over time', 50, yPos + 48);
 
     // Footer
     yPos = 750;
-    doc.fontSize(8)
-       .fillColor('#999999')
-       .text('Generated by AgriVision Agricultural Intelligence Platform', 50, yPos, { align: 'center' })
-       .text(`Report ID: ${Date.now()}`, 50, yPos + 12, { align: 'center' });
+    doc.strokeColor('#e5e7eb').lineWidth(1).moveTo(50, yPos - 15).lineTo(545, yPos - 15).stroke();
+    doc.fontSize(10).fillColor('#16a34a').font('Helvetica-Bold').text('AgriVision', 50, yPos).font('Helvetica');
+    doc.fontSize(8).fillColor('#6b7280').text('Agricultural Intelligence Platform | www.agrivision.com', 50, yPos + 12);
+    doc.text(`Report ID: RPT-${Date.now()} | Generated: ${new Date().toISOString()}`, 300, yPos + 6);
 
-    // Finalize PDF
     doc.end();
-
   } catch (error) {
-    console.error("Error generating report:", error);
+    console.error("Report generation error:", error);
     res.status(500).json({ error: error.message });
   }
 };
-
