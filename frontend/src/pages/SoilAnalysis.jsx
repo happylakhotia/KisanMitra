@@ -1,18 +1,22 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Navbar from "../components/dashboard/Navbar";
 import Sidebar from "../components/dashboard/Sidebar";
 import { useAuth } from "../contexts/authcontext/Authcontext";
 import { Navigate, useNavigate } from "react-router-dom";
 import { doSignOut } from "../firebase/auth";
+import { rtdb } from "../firebase/firebase";
+import { ref, query, limitToLast, get, orderByKey, remove } from "firebase/database";
 
 const SoilAnalysis = () => {
   const { currentUser, userLoggedIn } = useAuth();
   const navigate = useNavigate();
-  
-  const [sensorCode, setSensorCode] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [results, setResults] = useState(null);
+  const [entries, setEntries] = useState([]);
+  const [selectedEntry, setSelectedEntry] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -25,106 +29,88 @@ const SoilAnalysis = () => {
 
   if (!userLoggedIn) return <Navigate to="/login" replace />;
 
-  const API_URL = "https://itvi-1234-npk.hf.space/predict";
-
-  const analyzeData = async () => {
-    // Reset states
+  const fetchLatestSoilData = async () => {
     setError("");
-    setResults(null);
-
-    // Validation
-    if (sensorCode.trim().length !== 30) {
-      setError("Error: Code must be exactly 30 digits.");
-      return;
-    }
-
     setLoading(true);
-
     try {
-      const response = await fetch(API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ code: sensorCode.trim() }),
-      });
+      const soilRef = ref(rtdb, "soil");
+      const soilQuery = query(soilRef, orderByKey(), limitToLast(10));
+      const snapshot = await get(soilQuery);
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setResults(data);
-      } else {
-        setError("Server Error: " + (data.error || "Unknown error"));
+      if (!snapshot.exists()) {
+        setError("No soil data found in Realtime DB.");
+        setResults(null);
+        setEntries([]);
+        return;
       }
-    } catch (error) {
-      setError("Connection Failed! Check your internet or API URL.");
-      console.error(error);
+
+      const data = snapshot.val();
+      const list = Object.entries(data).map(([key, value]) => ({
+        id: key,
+        ...value,
+      }));
+
+      list.sort((a, b) => (a.id < b.id ? 1 : -1));
+
+      setEntries(list);
+      const latest = list[0];
+      setSelectedEntry(latest.id);
+      setResults({
+        readings: {
+          nitrogen: latest.nitrogen ?? "--",
+          phosphorus: latest.phosphorous ?? latest.phosphorus ?? "--",
+          potassium: latest.potassium ?? "--",
+          soil_moisture: latest.moisture ?? "--",
+          air_temperature: latest.temperature ?? "--",
+          humidity: latest.humidity ?? "--",
+        },
+        sourceId: latest.id,
+      });
+    } catch (err) {
+      console.error(err);
+      setError("Failed to load soil data from Realtime");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleKeyPress = (e) => {
-    if (e.key === "Enter" && !loading) {
-      analyzeData();
-    }
-  };
+  useEffect(() => {
+    fetchLatestSoilData();
+  }, []);
 
-  // Function to format text by removing markdown syntax and rendering properly
-  const formatText = (text) => {
-    if (!text) return "";
-    
-    // Remove markdown bold syntax (**text** or __text__) and make it bold
-    let formatted = text
-      .replace(/\*\*(.*?)\*\*/g, (match, content) => content)
-      .replace(/__(.*?)__/g, (match, content) => content);
-    
-    // Remove markdown italic syntax (*text* or _text_)
-    formatted = formatted
-      .replace(/\*(.*?)\*/g, (match, content) => content)
-      .replace(/_(.*?)_/g, (match, content) => content);
-    
-    // Split by lines to handle multi-line text
-    const lines = formatted.split('\n').filter(line => line.trim() !== '');
-    
-    return lines.map((line, lineIndex) => {
-      // Handle numbered lists (1. text) - remove the number prefix
-      const numberedMatch = line.match(/^\d+\.\s(.+)$/);
-      if (numberedMatch) {
-        return (
-          <React.Fragment key={lineIndex}>
-            {lineIndex > 0 && <br />}
-            <span>{numberedMatch[1]}</span>
-          </React.Fragment>
-        );
-      }
-      
-      // Handle bullet points (- or *) - remove the bullet
-      const bulletMatch = line.match(/^[-*]\s(.+)$/);
-      if (bulletMatch) {
-        return (
-          <React.Fragment key={lineIndex}>
-            {lineIndex > 0 && <br />}
-            <span>{bulletMatch[1]}</span>
-          </React.Fragment>
-        );
-      }
-      
-      return (
-        <React.Fragment key={lineIndex}>
-          {lineIndex > 0 && <br />}
-          <span>{line.trim()}</span>
-        </React.Fragment>
-      );
+  const handleSelectChange = (e) => {
+    const entry = entries.find((item) => item.id === e.target.value);
+    if (!entry) return;
+    setSelectedEntry(entry.id);
+    setResults({
+      readings: {
+        nitrogen: entry.nitrogen ?? "--",
+        phosphorus: entry.phosphorous ?? entry.phosphorus ?? "--",
+        potassium: entry.potassium ?? "--",
+        soil_moisture: entry.moisture ?? "--",
+        air_temperature: entry.temperature ?? "--",
+        humidity: entry.humidity ?? "--",
+      },
+      sourceId: entry.id,
     });
   };
 
-  // Function to format recommendations (handles both string and array)
-  const formatRecommendation = (rec) => {
-    if (typeof rec === 'string') {
-      return formatText(rec);
+  const handleDelete = async () => {
+    if (!selectedEntry) return;
+    const confirmed = window.confirm("Delete this soil record from Realtime ?");
+    if (!confirmed) return;
+    setDeleting(true);
+    setError("");
+    try {
+      await remove(ref(rtdb, `soil/${selectedEntry}`));
+      // Refresh list
+      await fetchLatestSoilData();
+    } catch (err) {
+      console.error(err);
+      setError("Failed to delete record. Try again.");
+    } finally {
+      setDeleting(false);
     }
-    return rec;
   };
 
   return (
@@ -132,37 +118,19 @@ const SoilAnalysis = () => {
       <Navbar currentUser={currentUser} onLogout={handleLogout} />
       <Sidebar />
 
-      <div className="pt-20 lg:ml-64 px-8 pb-8">
-        <div className="max-w-4xl mx-auto">
-          {/* Header */}
+      {/* Increased spacing below navbar */}
+      <div className="pt-28 lg:ml-64 px-8 pb-8">
+        <div className="max-w-6xl mx-auto">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-semibold text-gray-900 tracking-tight mb-2">
               🌱 Smart Agriculture System
             </h1>
-            <p className="text-gray-600 text-base">
-              Enter your 30-digit sensor code to analyze soil health
-            </p>
           </div>
 
-          {/* Input Section */}
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 mb-6">
             <div className="flex flex-col sm:flex-row gap-4 items-center">
-              <input
-                type="text"
-                value={sensorCode}
-                onChange={(e) => {
-                  setSensorCode(e.target.value);
-                  setError("");
-                }}
-                onKeyPress={handleKeyPress}
-                placeholder="e.g. 000200000200000200000100000100"
-                maxLength={30}
-                className="flex-1 w-full px-4 py-3 text-lg border-2 border-gray-300 rounded-lg 
-                         focus:outline-none focus:border-green-500 transition-colors
-                         font-mono tracking-wider"
-              />
               <button
-                onClick={analyzeData}
+                onClick={fetchLatestSoilData}
                 disabled={loading}
                 className={`px-6 py-3 text-lg font-medium rounded-lg text-white transition-colors
                   ${
@@ -171,104 +139,120 @@ const SoilAnalysis = () => {
                       : "bg-green-600 hover:bg-green-700"
                   }`}
               >
-                {loading ? "Analyzing..." : "Analyze"}
+                {loading ? "Loading..." : "Refresh Latest Data"}
               </button>
+
+              {entries.length > 0 && (
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <label className="text-sm font-semibold text-gray-700">
+                    Record:
+                  </label>
+                  <select
+                    value={selectedEntry || ""}
+                    onChange={handleSelectChange}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-400"
+                  >
+                    {entries.map((entry) => (
+                      <option key={entry.id} value={entry.id}>
+                        {entry.id}
+                      </option>
+                    ))}
+                  </select>
+                    <button
+                      onClick={handleDelete}
+                      disabled={!selectedEntry || deleting}
+                      className={`px-4 py-2 text-sm font-medium rounded-lg text-white transition-colors
+                        ${
+                          !selectedEntry || deleting
+                            ? "bg-gray-400 cursor-not-allowed"
+                            : "bg-red-500 hover:bg-red-600"
+                        }`}
+                    >
+                      {deleting ? "Deleting..." : "Delete"}
+                    </button>
+                </div>
+              )}
             </div>
 
-            {/* Error Message */}
+            <div className="mt-4 text-sm text-gray-500 text-center sm:text-left">
+              Viewing the latest soil packets from `soil` in Realtime. Use Refresh
+              to pull new readings or pick a specific record.
+            </div>
+
             {error && (
               <div className="mt-4 text-center">
                 <p className="text-red-600 text-sm">{error}</p>
               </div>
             )}
 
-            {/* Loader */}
             {loading && (
               <div className="flex justify-center mt-6">
                 <div className="w-10 h-10 border-4 border-gray-200 border-t-green-600 rounded-full animate-spin"></div>
               </div>
             )}
+
+            {!loading && !error && !results && (
+              <div className="mt-6 text-center text-sm text-gray-600 bg-gray-50 border border-dashed border-gray-200 rounded-lg p-4">
+                No readings loaded yet. Click “Refresh Latest Data”.
+              </div>
+            )}
           </div>
 
-          {/* Results Section */}
           {results && (
             <div className="space-y-6">
-              {/* Sensor Values Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-                <div className="bg-white rounded-lg shadow-md border-t-4 border-green-500 p-5 text-center">
-                  <h3 className="text-sm text-gray-600 mb-2">Nitrogen (N)</h3>
-                  <div className="text-2xl font-bold text-gray-900 mb-1">
-                    {results.readings?.nitrogen || "--"}
-                  </div>
-                  <span className="text-xs text-gray-500">mg/kg</span>
-                </div>
-
-                <div className="bg-white rounded-lg shadow-md border-t-4 border-green-500 p-5 text-center">
-                  <h3 className="text-sm text-gray-600 mb-2">Phosphorus (P)</h3>
-                  <div className="text-2xl font-bold text-gray-900 mb-1">
-                    {results.readings?.phosphorus || "--"}
-                  </div>
-                  <span className="text-xs text-gray-500">mg/kg</span>
-                </div>
-
-                <div className="bg-white rounded-lg shadow-md border-t-4 border-green-500 p-5 text-center">
-                  <h3 className="text-sm text-gray-600 mb-2">Potassium (K)</h3>
-                  <div className="text-2xl font-bold text-gray-900 mb-1">
-                    {results.readings?.potassium || "--"}
-                  </div>
-                  <span className="text-xs text-gray-500">mg/kg</span>
-                </div>
-
-                <div className="bg-white rounded-lg shadow-md border-t-4 border-green-500 p-5 text-center">
-                  <h3 className="text-sm text-gray-600 mb-2">Moisture</h3>
-                  <div className="text-2xl font-bold text-gray-900 mb-1">
-                    {results.readings?.soil_moisture || "--"}
-                  </div>
-                  <span className="text-xs text-gray-500">%</span>
-                </div>
-
-                <div className="bg-white rounded-lg shadow-md border-t-4 border-green-500 p-5 text-center">
-                  <h3 className="text-sm text-gray-600 mb-2">Temperature</h3>
-                  <div className="text-2xl font-bold text-gray-900 mb-1">
-                    {results.readings?.air_temperature || "--"}
-                  </div>
-                  <span className="text-xs text-gray-500">°C</span>
-                </div>
-              </div>
-
-              {/* Analysis Report */}
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8">
-                <h2 className="text-2xl font-semibold text-gray-900 mb-6">
-                  📝 Analysis Report
-                </h2>
-
-                {/* Summary */}
-                <div className="bg-green-50 border-l-4 border-green-500 rounded-lg p-4 mb-6">
-                  <div className="text-gray-800 font-medium leading-relaxed whitespace-pre-line">
-                    {formatText(results.result?.summary || "Loading summary...")}
-                  </div>
-                </div>
-
-                {/* Recommendations */}
+              <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                    Recommendations:
-                  </h3>
-                  <ul className="space-y-3">
-                    {results.result?.recommendations?.map((rec, index) => (
-                      <li
-                        key={index}
-                        className="flex items-start gap-3 bg-gray-50 border-b border-gray-200 p-4 rounded-lg"
-                      >
-                        <span className="text-green-600 text-lg flex-shrink-0 mt-0.5">OK</span>
-                        <div className="text-gray-800 leading-relaxed flex-1">
-                          {formatRecommendation(rec)}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Latest Soil Snapshot
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    Switch records above to compare.
+                  </p>
                 </div>
+                {results.sourceId && (
+                  <span className="text-xs font-semibold px-3 py-1 rounded-full bg-green-50 border border-green-200 text-green-700">
+                    ID: {results.sourceId}
+                  </span>
+                )}
               </div>
+
+              {/* Sensor Values Grid */}
+ <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-8 md:gap-10">
+  {[
+    { label: "Nitrogen (N)", value: results.readings?.nitrogen, unit: "mg/kg" },
+    { label: "Phosphorus (P)", value: results.readings?.phosphorus, unit: "mg/kg" },
+    { label: "Potassium (K)", value: results.readings?.potassium, unit: "mg/kg" },
+    { label: "Moisture", value: results.readings?.soil_moisture, unit: "%" },
+    { label: "Temperature", value: results.readings?.air_temperature, unit: "°C" },
+    { label: "Humidity", value: results.readings?.humidity, unit: "%" },
+  ].map((item, index) => (
+    <div
+      key={index}
+      className="
+        bg-white 
+        min-w-[170px]
+        rounded-xl 
+        shadow-md 
+        border border-gray-200 
+        border-t-4 border-green-500 
+        p-6 
+        flex flex-col items-center justify-center 
+        transition-all duration-200 
+        hover:-translate-y-1 hover:shadow-lg hover:border-green-400 
+      "
+    >
+      <h3 className="text-base font-semibold text-gray-700 mb-3 text-center">
+        {item.label}
+      </h3>
+
+      <div className="text-3xl font-bold text-gray-900 flex items-baseline justify-center gap-2">
+        <span>{item.value || "--"}</span>
+        <span className="text-sm font-semibold text-gray-500">{item.unit}</span>
+      </div>
+    </div>
+  ))}
+</div>
+
             </div>
           )}
         </div>
@@ -278,4 +262,3 @@ const SoilAnalysis = () => {
 };
 
 export default SoilAnalysis;
-
