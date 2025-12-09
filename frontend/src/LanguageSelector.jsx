@@ -19,7 +19,7 @@ function LanguageSelector() {
       >
         <option value="en">{t("language_en")}</option>
         <option value="hi">{t("language_hi")}</option>
-        <option value="bn">{t("language_bn")}</option>
+        {/* <option value="bn">{t("language_bn")}</option> */}
       </select>
     </div>
   );
