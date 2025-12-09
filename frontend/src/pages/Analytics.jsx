@@ -1,81 +1,83 @@
 import React, { useState, useEffect } from "react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  Legend, AreaChart, Area, ComposedChart, Bar, ScatterChart, Scatter, ReferenceLine
+  Legend, AreaChart, Area, ComposedChart, Bar, ReferenceLine
 } from "recharts";
-import { CloudRain, Sun, Droplets, Activity, Sprout, Wind, AlertTriangle } from "lucide-react";
+import { 
+  CloudRain, Sun, Droplets, Activity, Sprout, Wind, AlertTriangle, 
+  Sparkles, Loader2 
+} from "lucide-react";
 import Navbar from "../components/dashboard/Navbar";
 import Sidebar from "../components/dashboard/Sidebar";
 import { useAuth } from "../contexts/authcontext/Authcontext";
-import { doc, getDoc, collection, getDocs } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 import { doSignOut } from "../firebase/auth";
 import { useNavigate } from "react-router-dom";
+import Groq from "groq-sdk";
+
+// Read Groq key from Vite env (do NOT hardcode secrets)
+const apiKey = import.meta.env.VITE_GROQ_API_KEY;
 
 const Analytics = () => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
+  
+  // Data States
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState([]);
-  const [stats, setStats] = useState({
-    avgNDVI: 0,
-    waterStressDays: 0,
-    totalRain: 0,
-    diseaseRiskDays: 0
-  });
-  const [error, setError] = useState("");
-  
-  // Field selection
   const [fields, setFields] = useState([]);
   const [selectedField, setSelectedField] = useState(null);
   const [fieldsLoading, setFieldsLoading] = useState(true);
+  
+  // Stats & Error
+  const [stats, setStats] = useState({
+    avgNDVI: 0, waterStressDays: 0, totalRain: 0, diseaseRiskDays: 0
+  });
+  const [error, setError] = useState("");
+
+  // --- AI INSIGHT STATES ---
+  const [insights, setInsights] = useState({
+    water: null,
+    stress: null,
+    health: null,
+    disease: null
+  });
+  const [analyzing, setAnalyzing] = useState({
+    water: false,
+    stress: false,
+    health: false,
+    disease: false
+  });
 
   const API_URL = "https://itvi-1234-newcollectordata.hf.space/generate_data";
 
   const handleLogout = () => {
-    doSignOut().then(() => {
-      navigate("/login");
-    });
+    doSignOut().then(() => navigate("/login"));
   };
 
-  // Fetch user's fields
   useEffect(() => {
     const fetchFields = async () => {
       if (!currentUser) return;
-      
       try {
         const fieldsRef = collection(db, "users", currentUser.uid, "fields");
         const fieldsSnap = await getDocs(fieldsRef);
-        
-        const fetchedFields = fieldsSnap.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        
-        // Sort by creation date
+        const fetchedFields = fieldsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         fetchedFields.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-        
         setFields(fetchedFields);
-        
-        // Auto-select first field if available
-        if (fetchedFields.length > 0) {
-          setSelectedField(fetchedFields[0]);
-        }
+        if (fetchedFields.length > 0) setSelectedField(fetchedFields[0]);
       } catch (err) {
         console.error("Error fetching fields:", err);
       } finally {
         setFieldsLoading(false);
       }
     };
-
     fetchFields();
   }, [currentUser]);
 
-  // --- 🧠 SMART DATA PROCESSING ---
   const processData = (csvText) => {
     const lines = csvText.trim().split("\n");
     const headers = lines[0].split(",");
-    
     let rawData = lines.slice(1).map(line => {
       const values = line.split(",");
       const obj = {};
@@ -86,55 +88,44 @@ const Analytics = () => {
       return obj;
     });
 
-    // 1. Simulate Soil Moisture (Agar API me nahi hai)
     let currentMoisture = 50; 
-    
     const processed = rawData.map((d, i) => {
-      // Soil Moisture Logic
-      if (d.precipitation > 0) {
-        currentMoisture += d.precipitation * 2; 
-      } else {
-        currentMoisture -= (d.vpd * 0.8) + 0.5; 
-      }
+      if (d.precipitation > 0) currentMoisture += d.precipitation * 2; 
+      else currentMoisture -= (d.vpd * 0.8) + 0.5; 
       currentMoisture = Math.max(10, Math.min(90, currentMoisture)); 
 
-      // Cumulative GDD
       const prevGDD = i > 0 ? rawData[i-1].cum_gdd || 0 : 0;
       const cum_gdd = prevGDD + (d.gdd || 0);
       d.cum_gdd = cum_gdd;
 
       return {
         ...d,
-        dateShort: d.date.substring(5), // MM-DD for X-Axis
+        dateShort: d.date.substring(5),
         soil_moisture: d.soil_moisture || parseFloat(currentMoisture.toFixed(1)),
         ndvi_smooth: d.ndvi, 
       };
     });
 
-    // 2. Apply Smoothing (7-Day Rolling Average)
     for (let i = 3; i < processed.length - 3; i++) {
       let sum = 0;
       for (let j = -3; j <= 3; j++) sum += processed[i+j].ndvi;
       processed[i].ndvi_smooth = parseFloat((sum / 7).toFixed(3));
     }
-
     return processed;
   };
 
   useEffect(() => {
     const fetchData = async () => {
       if (!currentUser || !selectedField || fieldsLoading) return;
-      
       setLoading(true);
       setError("");
+      setInsights({ water: null, stress: null, health: null, disease: null });
       
       try {
-        // Use selected field's coordinates
         let lat = selectedField.lat || 31.22;
         let lon = selectedField.lng || 75.26;
         let fieldName = selectedField.name || "Field_1";
 
-        // 2. Call API
         const response = await fetch(API_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -147,7 +138,6 @@ const Analytics = () => {
         const finalData = processData(csvText);
         setData(finalData);
 
-        // 3. Calculate KPI Stats
         const avgNDVI = finalData.reduce((s, d) => s + (d.ndvi || 0), 0) / finalData.length;
         const totalRain = finalData.reduce((s, d) => s + (d.precipitation || 0), 0);
         const stressDays = finalData.filter(d => d.vpd > 1.5).length;
@@ -166,11 +156,60 @@ const Analytics = () => {
         setLoading(false);
       }
     };
-
     fetchData();
   }, [currentUser, selectedField, fieldsLoading]);
 
-  // --- 🛠 Custom Tooltip ---
+  // --- 🚀 GROQ AI INTEGRATION ---
+  const generateInsight = async (section, dataContext) => {
+    if (!apiKey || apiKey.includes("gsk_xxxx")) {
+      setInsights(prev => ({
+        ...prev,
+        [section]: "Groq API key missing. Add VITE_GROQ_API_KEY in frontend/.env and restart dev server."
+      }));
+      return;
+    }
+
+    setAnalyzing(prev => ({ ...prev, [section]: true }));
+
+    try {
+      // ✅ Groq Initialization
+      // dangerouslyAllowBrowser: true is needed for frontend React
+      const groq = new Groq({ apiKey, dangerouslyAllowBrowser: true });
+
+      const prompt = `
+        Act as an Expert Agronomist. Analyze this field data:
+        Context: ${dataContext.description}
+        Stats: ${JSON.stringify(dataContext.stats)}
+        
+        Task: Provide 2 very short, actionable bullet points (max 15 words each) for a farmer.
+        Focus: Practical advice or risk warning.
+      `;
+
+      const chatCompletion = await groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: "llama-3.3-70b-versatile", // Using Llama 3 (Fast & Smart)
+        temperature: 0.5,
+        max_tokens: 100,
+      });
+
+      const text = chatCompletion.choices[0]?.message?.content || "No insights generated.";
+      
+      setInsights(prev => ({ ...prev, [section]: text }));
+    } catch (error) {
+      console.error("Groq AI Error:", error);
+      const message = (() => {
+        const raw = error?.message || "";
+        if (raw.toLowerCase().includes("401") || raw.toLowerCase().includes("invalid api key")) {
+          return "Invalid Groq API key. Update VITE_GROQ_API_KEY in frontend/.env and restart dev server.";
+        }
+        return raw || "Service unavailable. Check key, network, or usage limits.";
+      })();
+      setInsights(prev => ({ ...prev, [section]: message }));
+    } finally {
+      setAnalyzing(prev => ({ ...prev, [section]: false }));
+    }
+  };
+
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
@@ -191,13 +230,14 @@ const Analytics = () => {
     return null;
   };
 
-  // Show loading if fields are being fetched or data is loading
-  if (fieldsLoading) return (
-    <div className="h-screen flex flex-col items-center justify-center bg-gray-50">
-      <div className="w-16 h-16 border-4 border-green-600 border-t-transparent rounded-full animate-spin"></div>
-      <p className="mt-4 text-gray-500 font-medium animate-pulse">Loading fields...</p>
-    </div>
-  );
+  if (fieldsLoading || (loading && selectedField)) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center bg-gray-50">
+        <div className="w-16 h-16 border-4 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+        <p className="mt-4 text-gray-600 font-semibold">Fetching results...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -207,82 +247,32 @@ const Analytics = () => {
       <div className="pt-24 lg:ml-64 px-6 pb-12">
         <div className="max-w-7xl mx-auto space-y-8">
           
-          {/* No Fields Message */}
-          {!fieldsLoading && fields.length === 0 && (
-            <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-6 text-center">
-              <h2 className="text-xl font-bold text-yellow-900 mb-2">No Fields Found</h2>
-              <p className="text-yellow-800 mb-4">
-                You need to add at least one field to view analytics.
-              </p>
-              <button
-                onClick={() => navigate("/farm-selection")}
-                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
-              >
-                Add Your First Field
-              </button>
-            </div>
-          )}
-          
-          {/* Loading Data Indicator */}
-          {loading && selectedField && (
-            <div className="bg-white border border-gray-200 rounded-xl p-6 text-center">
-              <div className="w-12 h-12 border-4 border-green-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-              <p className="mt-4 text-gray-600 font-medium animate-pulse">
-                Calculating Crop Metrics for {selectedField.name}...
-              </p>
-            </div>
-          )}
-          
-          {/* Error Message */}
-          {error && (
-            <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
-              <p className="text-red-800 text-center">{error}</p>
-            </div>
-          )}
-          
-          {/* Show content only when we have data */}
-          {!loading && !fieldsLoading && fields.length > 0 && data.length > 0 && (
+           {!loading && !fieldsLoading && fields.length > 0 && data.length > 0 && (
             <>
-          
-          {/* HEADER */}
+          {/* HEADER & KPI CARDS */}
           <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Advanced Analytics</h1>
               <p className="text-gray-500 mt-1">Satellite & Weather Intelligence for Precision Farming</p>
             </div>
-            
-            <div className="flex items-center gap-3 flex-wrap">
-              {/* Field Selector */}
+             <div className="flex items-center gap-3 flex-wrap">
               {fields.length > 0 && (
                 <div className="flex items-center gap-2">
-                  <label className="text-sm font-semibold text-gray-700">
-                    Field:
-                  </label>
+                  <label className="text-sm font-semibold text-gray-700">Field:</label>
                   <select
                     value={selectedField?.id || ""}
-                    onChange={(e) => {
-                      const field = fields.find(f => f.id === e.target.value);
-                      setSelectedField(field);
-                    }}
-                    className="min-w-[150px] px-4 py-2 border border-green-200 bg-white rounded-lg shadow-sm focus:ring-2 focus:ring-green-400 text-sm font-medium text-gray-900"
+                    onChange={(e) => setSelectedField(fields.find(f => f.id === e.target.value))}
+                    className="min-w-[150px] px-4 py-2 border border-green-200 bg-white rounded-lg shadow-sm"
                   >
                     {fields.map((field, index) => (
-                      <option key={field.id} value={field.id}>
-                        Field {index + 1}
-                      </option>
+                      <option key={field.id} value={field.id}>Field {index + 1}</option>
                     ))}
                   </select>
                 </div>
               )}
-              
-              {/* Data Range Badge */}
-              <span className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded border border-green-400 whitespace-nowrap">
-                Data Range: Last 6 Months
-              </span>
             </div>
           </div>
 
-          {/* KPI CARDS */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <StatCard title="Avg Health (NDVI)" value={stats.avgNDVI} unit="Index" icon={Sprout} color="text-green-600" bg="bg-green-50" />
             <StatCard title="Total Rainfall" value={stats.totalRain} unit="mm" icon={CloudRain} color="text-blue-600" bg="bg-blue-50" />
@@ -304,8 +294,8 @@ const Analytics = () => {
                   <ComposedChart data={data}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="dateShort" tick={{fontSize: 11}} minTickGap={30}/>
-                    <YAxis yAxisId="left" label={{ value: 'Soil Moisture (%)', angle: -90, position: 'insideLeft' }} domain={[0, 100]} />
-                    <YAxis yAxisId="right" orientation="right" label={{ value: 'Rain (mm)', angle: 90, position: 'insideRight' }} />
+                    <YAxis yAxisId="left" domain={[0, 100]} />
+                    <YAxis yAxisId="right" orientation="right" />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend verticalAlign="top" height={36}/>
                     <Bar yAxisId="right" dataKey="precipitation" name="Rainfall" fill="#60a5fa" barSize={10} radius={[4,4,0,0]} />
@@ -313,14 +303,29 @@ const Analytics = () => {
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
+
+              {/* 🤖 AI INSIGHT BLOCK 1 */}
+              <AIInsightBox 
+                section="water"
+                insight={insights.water}
+                loading={analyzing.water}
+                onAnalyze={() => generateInsight("water", {
+                  description: "Soil Moisture levels (%) over time plotted against Rainfall (mm).",
+                  stats: {
+                    avgMoisture: (data.reduce((a,b)=>a+b.soil_moisture,0)/data.length).toFixed(1),
+                    totalRain: stats.totalRain,
+                    daysBelowThreshold: data.filter(d => d.soil_moisture < 30).length
+                  }
+                })}
+              />
             </div>
           </div>
 
-          {/* --- SECTION 2: CROP STRESS & HEALTH (UPDATED) --- */}
+          {/* --- SECTION 2: CROP STRESS & HEALTH --- */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
             {/* VPD & TEMP */}
-            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col">
               <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
                 <Sun className="w-5 h-5 text-orange-500" />
                 Water Stress (VPD) & Temperature
@@ -330,7 +335,7 @@ const Analytics = () => {
                   <AreaChart data={data}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="dateShort" minTickGap={30} />
-                    <YAxis yAxisId="left" label={{ value: 'VPD (kPa)', angle: -90, position: 'insideLeft' }}/>
+                    <YAxis yAxisId="left" />
                     <YAxis yAxisId="right" orientation="right" unit="°C"/>
                     <Tooltip content={<CustomTooltip />} />
                     <ReferenceLine yAxisId="left" y={1.5} label="High Stress" stroke="red" strokeDasharray="3 3" />
@@ -339,10 +344,27 @@ const Analytics = () => {
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
+
+              {/* 🤖 AI INSIGHT BLOCK 2 */}
+              <div className="mt-auto">
+                <AIInsightBox 
+                  section="stress"
+                  insight={insights.stress}
+                  loading={analyzing.stress}
+                  onAnalyze={() => generateInsight("stress", {
+                    description: "Vapor Pressure Deficit (VPD in kPa) vs Maximum Temperature. VPD > 1.5 indicates crop water stress.",
+                    stats: {
+                      highStressDays: stats.waterStressDays,
+                      avgTemp: (data.reduce((a,b)=>a+b.temperature_max,0)/data.length).toFixed(1),
+                      peakVPD: Math.max(...data.map(d=>d.vpd)).toFixed(2)
+                    }
+                  })}
+                />
+              </div>
             </div>
 
-            {/* 🔥 MULTI-INDEX HEALTH (NDVI + EVI + SAVI + NDRE) */}
-            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+            {/* CROP HEALTH */}
+            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col">
               <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
                 <Activity className="w-5 h-5 text-purple-500" />
                 Crop Health Indices Comparison
@@ -355,15 +377,27 @@ const Analytics = () => {
                     <YAxis domain={[0, 1]} />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend />
-                    <Line type="monotone" dataKey="ndvi_smooth" name="NDVI (Smoothed)" stroke="#16a34a" strokeWidth={3} dot={false} />
-                    
-                    {/* 🔥 EVI Added Here */}
-                    <Line type="monotone" dataKey="evi" name="EVI (Enhanced)" stroke="#2563eb" strokeWidth={2} dot={false} strokeDasharray="3 3" />
-                    
-                    <Line type="monotone" dataKey="ndre" name="NDRE (Nitrogen)" stroke="#9333ea" strokeWidth={2} dot={false} strokeDasharray="5 5" />
-                    <Line type="monotone" dataKey="savi" name="SAVI (Soil)" stroke="#ca8a04" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="ndvi_smooth" name="NDVI" stroke="#16a34a" strokeWidth={3} dot={false} />
+                    <Line type="monotone" dataKey="evi" name="EVI" stroke="#2563eb" strokeWidth={2} dot={false} strokeDasharray="3 3" />
+                    <Line type="monotone" dataKey="ndre" name="NDRE" stroke="#9333ea" strokeWidth={2} dot={false} strokeDasharray="5 5" />
                   </LineChart>
                 </ResponsiveContainer>
+              </div>
+
+              {/* 🤖 AI INSIGHT BLOCK 3 */}
+              <div className="mt-auto">
+                <AIInsightBox 
+                  section="health"
+                  insight={insights.health}
+                  loading={analyzing.health}
+                  onAnalyze={() => generateInsight("health", {
+                    description: "Multispectral Indices Comparison: NDVI (Biomass), EVI (Canopy), NDRE (Nitrogen).",
+                    stats: {
+                      avgNDVI: stats.avgNDVI,
+                      peakNDRE: Math.max(...data.map(d=>d.ndre)).toFixed(2),
+                    }
+                  })}
+                />
               </div>
             </div>
           </div>
@@ -380,27 +414,88 @@ const Analytics = () => {
                 <ComposedChart data={data}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="dateShort" minTickGap={30} />
-                  <YAxis yAxisId="left" label={{ value: 'Wet Hours', angle: -90, position: 'insideLeft' }} />
-                  <YAxis yAxisId="right" orientation="right" label={{ value: 'Cumulative GDD', angle: 90, position: 'insideRight' }} />
+                  <YAxis yAxisId="left" />
+                  <YAxis yAxisId="right" orientation="right" />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend />
                   <Bar yAxisId="left" dataKey="leaf_wetness_hours" name="Leaf Wetness (Hrs)" fill="#a5b4fc" />
-                  <Line yAxisId="right" type="monotone" dataKey="cum_gdd" name="Crop Growth (GDD)" stroke="#f59e0b" strokeWidth={3} dot={false} />
-                  {/* Disease Threshold Line */}
+                  <Line yAxisId="right" type="monotone" dataKey="cum_gdd" name="GDD" stroke="#f59e0b" strokeWidth={3} dot={false} />
                   <ReferenceLine yAxisId="left" y={10} label="Disease Risk" stroke="red" strokeDasharray="3 3" />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
+
+            {/* 🤖 AI INSIGHT BLOCK 4 */}
+            <AIInsightBox 
+              section="disease"
+              insight={insights.disease}
+              loading={analyzing.disease}
+              onAnalyze={() => generateInsight("disease", {
+                description: "Disease risk based on Leaf Wetness Hours duration and Cumulative Growing Degree Days (GDD).",
+                stats: {
+                  highRiskDays: stats.diseaseRiskDays,
+                  totalGDD: data[data.length-1]?.cum_gdd?.toFixed(0),
+                  maxWetness: Math.max(...data.map(d=>d.leaf_wetness_hours)).toFixed(1)
+                }
+              })}
+            />
           </div>
-            </>
-          )}
+          </>
+        )}
         </div>
       </div>
     </div>
   );
 };
 
-// Helper Stats Component
+// --- SUB-COMPONENTS ---
+const AIInsightBox = ({ section, insight, loading, onAnalyze }) => {
+  return (
+    <div className="mt-4 pt-4 border-t border-gray-100">
+      {!insight && !loading && (
+        <button 
+          onClick={onAnalyze}
+          className="flex items-center gap-2 text-sm font-semibold text-orange-600 hover:text-orange-800 transition-colors bg-orange-50 px-4 py-2 rounded-lg w-full justify-center border border-orange-100 border-dashed"
+        >
+          <Sparkles className="w-4 h-4" />
+          Get Instant Analysis
+        </button>
+      )}
+
+      {loading && (
+        <div className="flex items-center gap-2 text-sm text-orange-500 bg-orange-50 px-4 py-3 rounded-lg animate-pulse">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Processing 
+        </div>
+      )}
+
+      {insight && (
+        <div className="bg-gradient-to-r from-orange-50 to-red-50 p-4 rounded-lg border border-orange-100">
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles className="w-4 h-4 text-orange-600" />
+            <h4 className="text-sm font-bold text-orange-900">Get Insights</h4>
+          </div>
+          <div className="text-sm text-gray-800 leading-relaxed space-y-1 pl-1">
+             {/* Markdown/Text Cleaning */}
+            {insight.replace(/\\/g, "").split("\n").filter(i => i.trim()).map((point, idx) => (
+              <div key={idx} className="flex gap-2 items-start">
+                {point.trim().startsWith("-") || point.trim().startsWith("•") ? (
+                  <>
+                  <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-orange-400 flex-shrink-0"></span>
+                  <span>{point.replace(/^[•-]\s*/, "").trim()}</span>
+                  </>
+                ) : (
+                   <span>{point}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const StatCard = ({ title, value, unit, icon: Icon, color, bg, desc }) => (
   <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all">
     <div className="flex justify-between items-start">
@@ -420,4 +515,3 @@ const StatCard = ({ title, value, unit, icon: Icon, color, bg, desc }) => (
 );
 
 export default Analytics;
-

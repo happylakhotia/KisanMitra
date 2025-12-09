@@ -96,14 +96,15 @@ const Sidebar = () => {
     { icon: Leaf, key: "sidebar_disease_detection", href: "/disease-detection"},
    
     
-    { icon: Package, key: "sidebar_logistics", href: "/logistics"},
-    { icon: Shield, key: "sidebar_insurance", href: "/insurance"},
-    { icon: Wrench, key: "sidebar_machinery", href: "/machinery"},
-    { icon: Users, key: "sidebar_find_customers", href: "/find-customers"},
+    
     { icon: BarChart3, key: "sidebar_analytics", href: "/analytics" },
     { icon: FileText, key: "sidebar_reports", href: "/reports" },
     { icon: Bell, key: "sidebar_alerts", href: "/alerts" },
     { icon: User, key: "sidebar_account", href: "/profile" },
+    { icon: Package, key: "sidebar_logistics", href: "/logistics"},
+    { icon: Shield, key: "sidebar_insurance", href: "/insurance"},
+    { icon: Wrench, key: "sidebar_machinery", href: "/machinery"},
+    { icon: Users, key: "sidebar_find_customers", href: "/find-customers"},
   ];
 
   const vendorMenuItems = [
