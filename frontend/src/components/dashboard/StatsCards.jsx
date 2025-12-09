@@ -19,12 +19,12 @@ const StatsCards = ({ field, totalFields = 1, alertsData = { total: 0, highPrior
     : "--";
   
   const tempStatus = weatherData && weatherData.main && weatherData.main.temp 
-    ? (weatherData.main.temp >= 15 && weatherData.main.temp <= 30 ? "Optimal range" : "Monitor required")
-    : "Loading...";
+    ? (weatherData.main.temp >= 15 && weatherData.main.temp <= 30 ? t("temperature_status_optimal") : t("temperature_status_monitor"))
+    : t("loading");
 
   // Calculate disease risk from NDVI data
   let diseasePercentage = 0;
-  let diseaseStatus = "Loading...";
+  let diseaseStatus = t("loading");
   
   if (lstmData && lstmData.forecast && lstmData.forecast.day_1) {
     // Get NDVI from day_1 forecast
@@ -53,26 +53,29 @@ const StatsCards = ({ field, totalFields = 1, alertsData = { total: 0, highPrior
     
     // Set status based on percentage
     if (diseasePercentage === 0) {
-      diseaseStatus = "No disease detected";
+      diseaseStatus = t("disease_status_none");
     } else if (diseasePercentage < 30) {
-      diseaseStatus = "Low risk";
+      diseaseStatus = t("disease_status_low");
     } else if (diseasePercentage < 60) {
-      diseaseStatus = "Moderate risk";
+      diseaseStatus = t("disease_status_moderate");
     } else {
-      diseaseStatus = "High risk - Action needed";
+      diseaseStatus = t("disease_status_high");
     }
     
     console.log("Disease Risk Calculation:", { ndviValue, diseasePercentage, diseaseStatus });
   } else if (!lstmData) {
-    diseaseStatus = "No data available";
+    diseaseStatus = t("disease_status_nodata");
   }
+
+  const activeFieldsPercentageText = t("stats_active_fields_percent", { value: fieldPercentage });
+  const highPriorityText = alertsData.total > 0 ? t("stats_high_priority", { value: highPriorityPercentage }) : "";
 
   const stats = [
     {
       titleKey: "stats_active_fields",
       subtitleKey: "stats_active_fields_sub",
       value: totalFields,
-      percentage: `${fieldPercentage}% from the last week`,
+      percentage: activeFieldsPercentageText,
       icon: Trees,
       bg: "bg-green-50",
       border: "border-green-200",
@@ -80,7 +83,7 @@ const StatsCards = ({ field, totalFields = 1, alertsData = { total: 0, highPrior
       text: "text-green-700",
     },
     {
-      title: "Temperature",
+      title: t("temperature_title"),
       subtitle: tempStatus,
       value: temperature,
       icon: Thermometer,
@@ -90,7 +93,7 @@ const StatsCards = ({ field, totalFields = 1, alertsData = { total: 0, highPrior
       text: "text-lime-700",
     },
     {
-      title: "Disease Risk",
+      title: t("disease_risk_title"),
       subtitle: diseaseStatus,
       value: `${diseasePercentage}%`,
       icon: Activity,
@@ -103,7 +106,7 @@ const StatsCards = ({ field, totalFields = 1, alertsData = { total: 0, highPrior
       titleKey: "stats_active_alerts",
       subtitleKey: "stats_active_alerts_sub",
       value: alertsData.total,
-      percentage: alertsData.total > 0 ? `${highPriorityPercentage}% High Priority` : "",
+      percentage: highPriorityText,
       icon: AlertTriangle,
       bg: "bg-red-50",
       border: "border-red-200",

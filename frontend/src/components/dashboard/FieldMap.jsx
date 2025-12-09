@@ -7,77 +7,77 @@ import "leaflet/dist/leaflet.css";
 
 const DEFAULT_CENTER = { lat: 17.3266, lng: 78.1695 };
 
-// Index descriptions based on color/value ranges
-const getIndexDescriptions = (indexType) => {
-  switch (indexType) {
+// Index descriptions based on color/value ranges (translated)
+const getIndexDescriptions = (indexType, t) => {
+  const typeKey = indexType === "SAVI" ? "NDVI" : indexType; // reuse NDVI labels for SAVI
+  switch (typeKey) {
     case "NDVI":
-    case "SAVI":
       return {
         healthy: {
           color: "#1a9641",
-          title: "Excellent Health",
-          description: "Your crop is thriving! Dense, healthy vegetation with optimal chlorophyll levels. Continue current practices.",
+          title: t("index_descriptions.NDVI.healthy.title"),
+          description: t("index_descriptions.NDVI.healthy.description"),
         },
         good: {
           color: "#a6d96a",
-          title: "Good Health",
-          description: "Healthy vegetation detected. Crops are growing well with adequate nutrient uptake.",
+          title: t("index_descriptions.NDVI.good.title"),
+          description: t("index_descriptions.NDVI.good.description"),
         },
         moderate: {
           color: "#fdae61",
-          title: "Moderate Stress",
-          description: "Some stress detected. Consider checking for water, nutrient deficiency, or early pest issues.",
+          title: t("index_descriptions.NDVI.moderate.title"),
+          description: t("index_descriptions.NDVI.moderate.description"),
         },
         poor: {
           color: "#d7191c",
-          title: "High Stress / Bare Soil",
-          description: "Low vegetation or high stress area. May indicate disease, drought, or bare soil. Immediate attention recommended.",
+          title: t("index_descriptions.NDVI.poor.title"),
+          description: t("index_descriptions.NDVI.poor.description"),
         },
       };
     case "EVI":
       return {
         healthy: {
           color: "#1a9641",
-          title: "Dense Canopy",
-          description: "Very dense vegetation with high biomass. Excellent canopy coverage and plant health.",
+          title: t("index_descriptions.EVI.healthy.title"),
+          description: t("index_descriptions.EVI.healthy.description"),
         },
         good: {
           color: "#a6d96a",
-          title: "Good Canopy",
-          description: "Good vegetation density. Healthy canopy development with adequate leaf area.",
+          title: t("index_descriptions.EVI.good.title"),
+          description: t("index_descriptions.EVI.good.description"),
         },
         moderate: {
           color: "#fdae61",
-          title: "Moderate Density",
-          description: "Moderate vegetation density. May benefit from improved growing conditions.",
+          title: t("index_descriptions.EVI.moderate.title"),
+          description: t("index_descriptions.EVI.moderate.description"),
         },
         poor: {
           color: "#d7191c",
-          title: "Sparse Vegetation",
-          description: "Low vegetation density detected. Check for growth issues or bare soil areas.",
+          title: t("index_descriptions.EVI.poor.title"),
+          description: t("index_descriptions.EVI.poor.description"),
         },
       };
     case "NDRE":
       return {
         healthy: {
           color: "#c49a00",
-          title: "Maturity Stage",
-          description: "Crop is in maturity/flowering stage. Monitor for harvest readiness.",
+          title: t("index_descriptions.NDRE.healthy.title"),
+          description: t("index_descriptions.NDRE.healthy.description"),
         },
         good: {
           color: "#1b8a3c",
-          title: "Active Growth",
-          description: "Strong vegetative growth with high chlorophyll activity. Optimal growing phase.",
+          title: t("index_descriptions.NDRE.good.title"),
+          description: t("index_descriptions.NDRE.good.description"),
         },
         moderate: {
           color: "#b2ff59",
-          title: "Early Growth",
-          description: "Early vegetative stage. Ensure adequate nutrients for continued growth.",
+          title: t("index_descriptions.NDRE.moderate.title"),
+          description: t("index_descriptions.NDRE.moderate.description"),
         },
         poor: {
           color: "#bdbdbd",
-          title: "Dormant / Bare",
-          description: "Minimal vegetation activity. Could be dormant, harvested, or bare soil.",
+          title: t("index_descriptions.NDRE.poor.title"),
+          description: t("index_descriptions.NDRE.poor.description"),
         },
       };
     default:
@@ -105,8 +105,8 @@ const hexToRgb = (hex) => {
 };
 
 // Find closest matching description based on pixel color
-const getDescriptionFromColor = (r, g, b, indexType) => {
-  const descriptions = getIndexDescriptions(indexType);
+const getDescriptionFromColor = (r, g, b, indexType, t) => {
+  const descriptions = getIndexDescriptions(indexType, t);
   if (!descriptions) return null;
 
   // Skip transparent or near-transparent pixels
@@ -130,7 +130,7 @@ const getDescriptionFromColor = (r, g, b, indexType) => {
   return minDistance < 150 ? closestMatch : null;
 };
 
-const HeatmapImageOverlay = ({ imageUrl, bounds, polygon, opacity, visible, indexType, onHoverInfo }) => {
+const HeatmapImageOverlay = ({ imageUrl, bounds, polygon, opacity, visible, indexType, onHoverInfo, t }) => {
   const map = useMap();
   const canvasRef = useRef(null);
   const imageDataRef = useRef(null);
@@ -236,7 +236,7 @@ const HeatmapImageOverlay = ({ imageUrl, bounds, polygon, opacity, visible, inde
 
       const pixel = getPixelColor(e.latlng);
       if (pixel && pixel.a > 50) {
-        const description = getDescriptionFromColor(pixel.r, pixel.g, pixel.b, indexType);
+        const description = getDescriptionFromColor(pixel.r, pixel.g, pixel.b, indexType, t);
         if (description) {
           onHoverInfo?.({
             ...description,
@@ -368,12 +368,12 @@ const FieldMap = ({ field, heatmapOverlay }) => {
         <div className="flex items-center gap-2">
           <MapPin className="h-5 w-5 text-green-600" />
           <h2 className="text-lg font-semibold text-gray-700">
-            Map of {field?.name || "Field"}
+            {t("field_map_header", { name: field?.name || t("field_map_default_name") })}
           </h2>
         </div>
         {heatmapOverlay?.visible && heatmapOverlay?.indexType && (
           <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-            Hover over heatmap for details
+            {t("field_map_hover_hint")}
           </span>
         )}
       </div>
@@ -422,6 +422,7 @@ const FieldMap = ({ field, heatmapOverlay }) => {
                 visible={heatmapOverlay.visible ?? true}
                 indexType={heatmapOverlay.indexType || "NDVI"}
                 onHoverInfo={handleHoverInfo}
+                t={t}
               />
             )}
           </MapContainer>

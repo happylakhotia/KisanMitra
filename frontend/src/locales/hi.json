@@ -8,6 +8,12 @@
   "savi_index": "SAVI सूचकांक",
   "language": "भाषा",
   "select_language": "भाषा चुनें",
+  "language_en": "अंग्रेज़ी",
+  "language_hi": "हिंदी",
+  "language_bn": "बांग्ला",
+  "loading_fields": "खेत लोड हो रहे हैं...",
+  "select_field_label": "खेत चुनें:",
+  "delete_field_tooltip": "इस खेत को हटाएँ",
   "brand": "एग्रीविज़न",
   "brand_ai": "एग्रीविज़न एआई",
   "nav_dashboard": "डैशबोर्ड",
@@ -35,6 +41,7 @@
   "sidebar_analytics": "विश्लेषण",
   "sidebar_alerts": "चेतावनी",
   "sidebar_account": "खाता",
+  "sidebar_reports": "रिपोर्ट्स",
   "sidebar_vendor_dashboard": "विक्रेता डैशबोर्ड",
   "sidebar_vendor_opportunities": "अवसर",
   "field_map_title": "फ़ील्ड मानचित्र",
@@ -46,5 +53,112 @@
   "field_add_details": "खेत विवरण जोड़ें",
   "field_draw_first": "पहले खेत बनाएं",
   "field_save_field": "खेत सहेजें",
-  "field_no_field_selected": "कोई खेत चयनित नहीं"
+  "field_no_field_selected": "कोई खेत चयनित नहीं",
+  "loading": "लोड हो रहा है...",
+  "temperature_title": "तापमान",
+  "temperature_status_optimal": "उपयुक्त सीमा",
+  "temperature_status_monitor": "निगरानी आवश्यक",
+  "disease_risk_title": "रोग जोखिम",
+  "disease_status_none": "कोई रोग नहीं मिला",
+  "disease_status_low": "कम जोखिम",
+  "disease_status_moderate": "मध्यम जोखिम",
+  "disease_status_high": "उच्च जोखिम - कार्रवाई आवश्यक",
+  "disease_status_nodata": "डेटा उपलब्ध नहीं",
+  "stats_active_fields_percent": "{{value}}% पिछले सप्ताह से",
+  "stats_high_priority": "{{value}}% उच्च प्राथमिकता",
+  "field_map_header": "{{name}} का मानचित्र",
+  "field_map_default_name": "खेत",
+  "field_map_hover_hint": "विवरण के लिए हीटमैप पर होवर करें",
+  "crop_analysis_title_with_field": "फसल विश्लेषण - {{name}}",
+  "index_option_ndvi": "एनडीविआई (स्वास्थ्य)",
+  "index_option_ndre": "एनडीआरई (वृद्धि)",
+  "index_option_savi": "सैवी (मिट्टी)",
+  "index_option_evi": "ईवीआई (घना कैनोपी)",
+  "crop_analysis_hide_heatmap": "हीटमैप छिपाएँ",
+  "crop_analysis_show_heatmap": "हीटमैप दिखाएँ",
+  "reference_index_title": "{{index}} संदर्भ सूचकांक",
+  "reference_index_subtitle": "क्षेत्रीय जोन और विश्लेषण पैमाना",
+  "crop_analysis_zones_title": "विभिन्न जोनों में खेत का क्षेत्रफल",
+  "crop_analysis_scale_title": "विश्लेषण पैमाना",
+  "crop_analysis_status_overgrown": "अधिक बढ़ा हुआ",
+  "crop_analysis_status_healthy": "स्वस्थ",
+  "crop_analysis_status_moderate": "मध्यम रोगग्रस्त",
+  "crop_analysis_status_high": "अधिक रोगग्रस्त",
+  "crop_analysis_status_early": "प्रारंभिक",
+  "crop_analysis_status_vegetative": "वेज़िटेटिव",
+  "crop_analysis_status_flowering": "फूल अवस्था",
+  "crop_analysis_status_maturity": "परिपक्वता",
+  "legend_title_ndvi": "एनडीविआई संदर्भ",
+  "legend_subtitle_ndvi": "स्वास्थ्य क्षेत्र",
+  "legend_title_savi": "सैवी संदर्भ",
+  "legend_subtitle_savi": "मिट्टी-समायोजित क्षेत्र",
+  "legend_title_evi": "ईवीआई संदर्भ",
+  "legend_subtitle_evi": "घना कैनोपी क्षेत्र",
+  "legend_title_ndre": "एनडीआरई संदर्भ",
+  "legend_subtitle_ndre": "वृद्धि चरण",
+  "crop_analysis_running": "एआई मॉडल चल रहा है ({{index}})...",
+  "crop_analysis_retry": "पुनः प्रयास करें",
+  "crop_analysis_stats_title": "{{index}} आँकड़े",
+  "crop_analysis_dominant": "प्रमुख स्थिति:",
+  "crop_analysis_opacity": "हीटमैप अपारदर्शिता",
+  "crop_analysis_visible": "✓ दृश्य",
+  "crop_analysis_hidden": "छिपा हुआ",
+  "crop_analysis_failed": "{{index}} डेटा संसाधित करने में विफल।",
+  "crop_analysis_server_error": "सर्वर से कनेक्शन विफल रहा।",
+  "index_descriptions": {
+    "NDVI": {
+      "healthy": {
+        "title": "उत्तम स्वास्थ्य",
+        "description": "आपकी फसल खूब बढ़ रही है! घना, स्वस्थ हरित आवरण। वर्तमान देखभाल जारी रखें।"
+      },
+      "good": {
+        "title": "अच्छा स्वास्थ्य",
+        "description": "स्वस्थ वनस्पति मिली। फसल अच्छी तरह बढ़ रही है और पोषक तत्व पर्याप्त हैं।"
+      },
+      "moderate": {
+        "title": "मध्यम तनाव",
+        "description": "कुछ तनाव दिखाई दे रहा है। पानी, पोषक कमी या शुरुआती कीट समस्या जांचें।"
+      },
+      "poor": {
+        "title": "उच्च तनाव / खाली मिट्टी",
+        "description": "कम वनस्पति या अधिक तनाव वाला क्षेत्र। रोग, सूखा या खुली मिट्टी का संकेत हो सकता है। तुरंत ध्यान दें।"
+      }
+    },
+    "EVI": {
+      "healthy": {
+        "title": "घना कैनोपी",
+        "description": "बहुत घना हरित आवरण, उच्च बायोमास। उत्कृष्ट कैनोपी और पौधों का स्वास्थ्य।"
+      },
+      "good": {
+        "title": "अच्छा कैनोपी",
+        "description": "उचित वनस्पति घनत्व। स्वस्थ कैनोपी विकास और पर्याप्त पत्ती क्षेत्र।"
+      },
+      "moderate": {
+        "title": "मध्यम घनत्व",
+        "description": "मध्यम वनस्पति घनत्व। बेहतर बढ़वार परिस्थितियों से लाभ मिल सकता है।"
+      },
+      "poor": {
+        "title": "छितरी हुई वनस्पति",
+        "description": "कम वनस्पति घनत्व। वृद्धि संबंधी समस्याएँ या खुली मिट्टी जांचें।"
+      }
+    },
+    "NDRE": {
+      "healthy": {
+        "title": "परिपक्वता चरण",
+        "description": "फसल परिपक्वता/फूल अवस्था में है। कटाई तैयारियों पर नज़र रखें।"
+      },
+      "good": {
+        "title": "सक्रिय वृद्धि",
+        "description": "मजबूत वनस्पतिक वृद्धि और उच्च क्लोरोफिल गतिविधि। सर्वोत्तम वृद्धि चरण।"
+      },
+      "moderate": {
+        "title": "प्रारंभिक वृद्धि",
+        "description": "प्रारंभिक वनस्पति चरण। लगातार वृद्धि के लिए पर्याप्त पोषक सुनिश्चित करें।"
+      },
+      "poor": {
+        "title": "निष्क्रिय / खाली",
+        "description": "न्यूनतम वनस्पति गतिविधि। निष्क्रिय, कटाई हो चुकी या खुली मिट्टी हो सकती है।"
+      }
+    }
+  }
 }

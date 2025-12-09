@@ -8,6 +8,12 @@
   "savi_index": "SAVI Index",
   "language": "Language",
   "select_language": "Select Language",
+  "language_en": "English",
+  "language_hi": "Hindi",
+  "language_bn": "Bengali",
+  "loading_fields": "Loading fields...",
+  "select_field_label": "Select Field:",
+  "delete_field_tooltip": "Delete this field",
   "brand": "AgriVision",
   "brand_ai": "AgriVision AI",
   "nav_dashboard": "Dashboard",
@@ -47,5 +53,112 @@
   "field_add_details": "Add Field Details",
   "field_draw_first": "Draw Field First",
   "field_save_field": "Save Field",
-  "field_no_field_selected": "No Field Selected"
+  "field_no_field_selected": "No Field Selected",
+  "loading": "Loading...",
+  "temperature_title": "Temperature",
+  "temperature_status_optimal": "Optimal range",
+  "temperature_status_monitor": "Monitor required",
+  "disease_risk_title": "Disease Risk",
+  "disease_status_none": "No disease detected",
+  "disease_status_low": "Low risk",
+  "disease_status_moderate": "Moderate risk",
+  "disease_status_high": "High risk - Action needed",
+  "disease_status_nodata": "No data available",
+  "stats_active_fields_percent": "{{value}}% from the last week",
+  "stats_high_priority": "{{value}}% High Priority",
+  "field_map_header": "Map of {{name}}",
+  "field_map_default_name": "Field",
+  "field_map_hover_hint": "Hover over heatmap for details",
+  "crop_analysis_title_with_field": "Crop Analysis - {{name}}",
+  "index_option_ndvi": "NDVI (Health)",
+  "index_option_ndre": "NDRE (Growth)",
+  "index_option_savi": "SAVI (Soil)",
+  "index_option_evi": "EVI (Dense)",
+  "crop_analysis_hide_heatmap": "Hide heatmap",
+  "crop_analysis_show_heatmap": "Show heatmap",
+  "reference_index_title": "{{index}} Reference Index",
+  "reference_index_subtitle": "Field area zones and analysis scale",
+  "crop_analysis_zones_title": "Field area in different zones",
+  "crop_analysis_scale_title": "Analysis Scale",
+  "crop_analysis_status_overgrown": "Overgrown",
+  "crop_analysis_status_healthy": "Healthy",
+  "crop_analysis_status_moderate": "Moderately Diseased",
+  "crop_analysis_status_high": "Highly Diseased",
+  "crop_analysis_status_early": "Early",
+  "crop_analysis_status_vegetative": "Vegetative",
+  "crop_analysis_status_flowering": "Flowering",
+  "crop_analysis_status_maturity": "Maturity",
+  "legend_title_ndvi": "NDVI Reference",
+  "legend_subtitle_ndvi": "Health zones",
+  "legend_title_savi": "SAVI Reference",
+  "legend_subtitle_savi": "Soil-adjusted zones",
+  "legend_title_evi": "EVI Reference",
+  "legend_subtitle_evi": "Dense canopy zones",
+  "legend_title_ndre": "NDRE Reference",
+  "legend_subtitle_ndre": "Growth stages",
+  "crop_analysis_running": "Running AI Model ({{index}})...",
+  "crop_analysis_retry": "Retry",
+  "crop_analysis_stats_title": "{{index}} Statistics",
+  "crop_analysis_dominant": "Dominant Condition:",
+  "crop_analysis_opacity": "Heatmap Opacity",
+  "crop_analysis_visible": "✓ Visible",
+  "crop_analysis_hidden": "Hidden",
+  "crop_analysis_failed": "Failed to process {{index}} data.",
+  "crop_analysis_server_error": "Server connection failed.",
+  "index_descriptions": {
+    "NDVI": {
+      "healthy": {
+        "title": "Excellent Health",
+        "description": "Your crop is thriving! Dense, healthy vegetation with optimal chlorophyll levels. Continue current practices."
+      },
+      "good": {
+        "title": "Good Health",
+        "description": "Healthy vegetation detected. Crops are growing well with adequate nutrient uptake."
+      },
+      "moderate": {
+        "title": "Moderate Stress",
+        "description": "Some stress detected. Consider checking for water, nutrient deficiency, or early pest issues."
+      },
+      "poor": {
+        "title": "High Stress / Bare Soil",
+        "description": "Low vegetation or high stress area. May indicate disease, drought, or bare soil. Immediate attention recommended."
+      }
+    },
+    "EVI": {
+      "healthy": {
+        "title": "Dense Canopy",
+        "description": "Very dense vegetation with high biomass. Excellent canopy coverage and plant health."
+      },
+      "good": {
+        "title": "Good Canopy",
+        "description": "Good vegetation density. Healthy canopy development with adequate leaf area."
+      },
+      "moderate": {
+        "title": "Moderate Density",
+        "description": "Moderate vegetation density. May benefit from improved growing conditions."
+      },
+      "poor": {
+        "title": "Sparse Vegetation",
+        "description": "Low vegetation density detected. Check for growth issues or bare soil areas."
+      }
+    },
+    "NDRE": {
+      "healthy": {
+        "title": "Maturity Stage",
+        "description": "Crop is in maturity/flowering stage. Monitor for harvest readiness."
+      },
+      "good": {
+        "title": "Active Growth",
+        "description": "Strong vegetative growth with high chlorophyll activity. Optimal growing phase."
+      },
+      "moderate": {
+        "title": "Early Growth",
+        "description": "Early vegetative stage. Ensure adequate nutrients for continued growth."
+      },
+      "poor": {
+        "title": "Dormant / Bare",
+        "description": "Minimal vegetation activity. Could be dormant, harvested, or bare soil."
+      }
+    }
+  }
 }

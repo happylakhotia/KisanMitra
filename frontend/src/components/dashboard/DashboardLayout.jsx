@@ -10,11 +10,13 @@ import { Bot, Trash2, MessageCircle } from "lucide-react";
 import { db } from "../../firebase/firebase";
 import { collection, getDocs, doc, setDoc, getDoc, deleteDoc } from "firebase/firestore";
 import axios from "axios";
+import { useTranslation } from "react-i18next";
 
 const OPENWEATHER_API_KEY = "6af24b4f823c9044d1cbad4c94379de5";
 const OPENWEATHER_BASE_URL = "https://api.openweathermap.org/data/2.5";
 
 const DashboardLayout = ({ currentUser, onLogout }) => {
+  const { t } = useTranslation();
   const [fields, setFields] = useState([]);
   const [selectedField, setSelectedField] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -400,12 +402,12 @@ const DashboardLayout = ({ currentUser, onLogout }) => {
           {/* FIELD SELECTOR DROPDOWN */}
           {loading ? (
             <div className="mb-6 text-center text-gray-500">
-              Loading fields...
+              {t("loading_fields")}
             </div>
           ) : (
             <div className="mb-6 flex items-center gap-4 flex-wrap">
               <label className="text-sm font-semibold text-gray-700">
-                Select Field:
+                {t("select_field_label")}
               </label>
               <div className="flex items-center gap-2">
                 <select
@@ -425,7 +427,7 @@ const DashboardLayout = ({ currentUser, onLogout }) => {
                   <button
                     onClick={() => handleDeleteField(selectedField.id)}
                     className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Delete this field"
+                    title={t("delete_field_tooltip")}
                   >
                     <Trash2 className="h-5 w-5" />
                   </button>

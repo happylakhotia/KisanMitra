@@ -6,6 +6,7 @@ import "leaflet/dist/leaflet.css";
 import { useAuth } from "../../contexts/authcontext/Authcontext";
 import { db } from "../../firebase/firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { useTranslation } from "react-i18next";
 
 const DEFAULT_CENTER = { lat: 20.5937, lng: 78.9629 }; // India centroid fallback
 
@@ -87,7 +88,7 @@ const FitPolygon = ({ polygon, bounds }) => {
   return null;
 };
 
-const ReferenceIndexDisplay = ({ indexType, legendConfig }) => {
+const ReferenceIndexDisplay = ({ indexType, legendConfig, t }) => {
   const [imageError, setImageError] = useState(false);
 
   if (imageError || !legendConfig) {
@@ -95,7 +96,7 @@ const ReferenceIndexDisplay = ({ indexType, legendConfig }) => {
       <div className="space-y-6">
         {/* Field area in Different zones */}
         <div className="space-y-3">
-          <h5 className="text-sm font-semibold text-gray-800">Field area in Different zones</h5>
+          <h5 className="text-sm font-semibold text-gray-800">{t("crop_analysis_zones_title")}</h5>
           <div className="grid grid-cols-1 gap-2">
             {legendConfig.bands.map((band) => (
               <div key={band.label} className="flex items-center gap-3 p-2 bg-gray-50 rounded border border-gray-200">
@@ -111,7 +112,7 @@ const ReferenceIndexDisplay = ({ indexType, legendConfig }) => {
 
         {/* Analysis Scale */}
         <div className="space-y-3">
-          <h5 className="text-sm font-semibold text-gray-800">Analysis Scale</h5>
+          <h5 className="text-sm font-semibold text-gray-800">{t("crop_analysis_scale_title")}</h5>
           
           {/* Health Status Icons */}
           <div className="flex items-center justify-between gap-2">
@@ -121,24 +122,24 @@ const ReferenceIndexDisplay = ({ indexType, legendConfig }) => {
                   case "NDVI":
                   case "SAVI":
                     return [
-                      { label: "Overgrown", color: "#1a9641", icon: "🌿" },
-                      { label: "Healthy", color: "#a6d96a", icon: "✓" },
-                      { label: "Moderately Diseased", color: "#fdae61", icon: "!" },
-                      { label: "Highly Diseased", color: "#d7191c", icon: "✗" },
+                      { label: t("crop_analysis_status_overgrown"), color: "#1a9641", icon: "🌿" },
+                      { label: t("crop_analysis_status_healthy"), color: "#a6d96a", icon: "✓" },
+                      { label: t("crop_analysis_status_moderate"), color: "#fdae61", icon: "!" },
+                      { label: t("crop_analysis_status_high"), color: "#d7191c", icon: "✗" },
                     ];
                   case "EVI":
                     return [
-                      { label: "Overgrown", color: "#1a9641", icon: "🌿" },
-                      { label: "Healthy", color: "#a6d96a", icon: "✓" },
-                      { label: "Moderately Diseased", color: "#fdae61", icon: "!" },
-                      { label: "Highly Diseased", color: "#d7191c", icon: "✗" },
+                      { label: t("crop_analysis_status_overgrown"), color: "#1a9641", icon: "🌿" },
+                      { label: t("crop_analysis_status_healthy"), color: "#a6d96a", icon: "✓" },
+                      { label: t("crop_analysis_status_moderate"), color: "#fdae61", icon: "!" },
+                      { label: t("crop_analysis_status_high"), color: "#d7191c", icon: "✗" },
                     ];
                   case "NDRE":
                     return [
-                      { label: "Early", color: "#1b8a3c", icon: "🌱" },
-                      { label: "Vegetative", color: "#b2ff59", icon: "🍃" },
-                      { label: "Flowering", color: "#c49a00", icon: "🌸" },
-                      { label: "Maturity", color: "#bdbdbd", icon: "M" },
+                      { label: t("crop_analysis_status_early"), color: "#1b8a3c", icon: "🌱" },
+                      { label: t("crop_analysis_status_vegetative"), color: "#b2ff59", icon: "🍃" },
+                      { label: t("crop_analysis_status_flowering"), color: "#c49a00", icon: "🌸" },
+                      { label: t("crop_analysis_status_maturity"), color: "#bdbdbd", icon: "M" },
                     ];
                   default:
                     return [];
@@ -205,6 +206,7 @@ const ReferenceIndexDisplay = ({ indexType, legendConfig }) => {
 
 const VegetationIndexCard = ({ field, onHeatmapReady }) => {
   const { currentUser } = useAuth();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [ndviData, setNdviData] = useState(null);
   const [error, setError] = useState(null);
@@ -315,11 +317,11 @@ const VegetationIndexCard = ({ field, onHeatmapReady }) => {
           });
         }
       } else {
-        setError(data.error || `Failed to process ${type} data.`);
+        setError(data.error || t("crop_analysis_failed", { index: type }));
       }
     } catch (err) {
       console.error(err);
-      setError("Server connection failed.");
+      setError(t("crop_analysis_server_error"));
     } finally {
       setLoading(false);
     }
@@ -338,8 +340,8 @@ const VegetationIndexCard = ({ field, onHeatmapReady }) => {
     switch (indexType) {
       case "NDVI":
         return {
-          title: "NDVI Reference",
-          subtitle: "Health zones",
+          title: t("legend_title_ndvi"),
+          subtitle: t("legend_subtitle_ndvi"),
           bands: [
             { color: "#d7191c", label: "-1 to 0.15" },
             { color: "#fdae61", label: "0.15 to 0.25" },
@@ -356,8 +358,8 @@ const VegetationIndexCard = ({ field, onHeatmapReady }) => {
         };
       case "SAVI":
         return {
-          title: "SAVI Reference",
-          subtitle: "Soil-adjusted zones",
+          title: t("legend_title_savi"),
+          subtitle: t("legend_subtitle_savi"),
           bands: [
             { color: "#d7191c", label: "-1 to 0.15" },
             { color: "#fdae61", label: "0.15 to 0.25" },
@@ -374,8 +376,8 @@ const VegetationIndexCard = ({ field, onHeatmapReady }) => {
         };
       case "EVI":
         return {
-          title: "EVI Reference",
-          subtitle: "Dense canopy zones",
+          title: t("legend_title_evi"),
+          subtitle: t("legend_subtitle_evi"),
           bands: [
             { color: "#d7191c", label: "-1 to 0.20" },
             { color: "#fdae61", label: "0.20 to 0.35" },
@@ -392,8 +394,8 @@ const VegetationIndexCard = ({ field, onHeatmapReady }) => {
         };
       case "NDRE":
         return {
-          title: "NDRE Reference",
-          subtitle: "Growth stages",
+          title: t("legend_title_ndre"),
+          subtitle: t("legend_subtitle_ndre"),
           bands: [
             { color: "#bdbdbd", label: "-1 to 0.02" },
             { color: "#b2ff59", label: "0.02 to 0.12" },
@@ -434,7 +436,7 @@ const VegetationIndexCard = ({ field, onHeatmapReady }) => {
       <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-white/50 backdrop-blur-md rounded-t-2xl">
         <h3 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
           <Sprout className="h-5 w-5 text-green-600" />
-          Crop Analysis {field && `- ${field.name}`}
+          {t("crop_analysis_title_with_field", { name: field?.name || t("field_map_default_name") })}
         </h3>
 
         <div className="flex gap-2">
@@ -455,16 +457,16 @@ const VegetationIndexCard = ({ field, onHeatmapReady }) => {
                          rounded-md text-xs text-gray-700 font-medium focus:ring-2 
                          focus:ring-green-300 outline-none cursor-pointer"
             >
-              <option value="NDVI">NDVI (Health)</option>
-              <option value="NDRE">NDRE (Growth)</option>
-              <option value="SAVI">SAVI (Soil)</option>
-              <option value="EVI">EVI (Dense)</option>
+              <option value="NDVI">{t("index_option_ndvi")}</option>
+              <option value="NDRE">{t("index_option_ndre")}</option>
+              <option value="SAVI">{t("index_option_savi")}</option>
+              <option value="EVI">{t("index_option_evi")}</option>
             </select>
             <ChevronDown className="h-3 w-3 absolute right-2 top-2 text-gray-600 pointer-events-none" />
             <button
               onClick={() => setHeatmapVisible((prev) => !prev)}
               className="p-2 rounded-md border border-gray-200 hover:bg-gray-100"
-              title={heatmapVisible ? "Hide heatmap" : "Show heatmap"}
+              title={heatmapVisible ? t("crop_analysis_hide_heatmap") : t("crop_analysis_show_heatmap")}
             >
               {heatmapVisible ? <Eye className="h-4 w-4 text-gray-700" /> : <EyeOff className="h-4 w-4 text-gray-700" />}
             </button>
@@ -477,30 +479,32 @@ const VegetationIndexCard = ({ field, onHeatmapReady }) => {
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-3 h-full">
             <Loader2 className="h-8 w-8 text-green-400 animate-spin" />
-            <p className="text-sm text-gray-600">Running AI Model ({indexType})...</p>
+            <p className="text-sm text-gray-600">{t("crop_analysis_running", { index: indexType })}</p>
           </div>
         ) : error ? (
           <div className="text-center p-4">
             <p className="text-red-600 text-sm mb-2">{error}</p>
-            <button onClick={handleRefresh} className="text-xs bg-red-100 text-red-700 px-3 py-1 rounded border border-red-300 hover:bg-red-200">Retry</button>
+            <button onClick={handleRefresh} className="text-xs bg-red-100 text-red-700 px-3 py-1 rounded border border-red-300 hover:bg-red-200">
+              {t("crop_analysis_retry")}
+            </button>
           </div>
         ) : (
           <div className="space-y-4">
             {/* Reference Index Image */}
             <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
               <div className="bg-gradient-to-r from-green-50 to-green-100 px-4 py-3 border-b border-gray-200">
-                <h4 className="text-sm font-semibold text-gray-800">{indexType} Reference Index</h4>
-                <p className="text-xs text-gray-600 mt-0.5">Field area zones and analysis scale</p>
+                <h4 className="text-sm font-semibold text-gray-800">{t("reference_index_title", { index: indexType })}</h4>
+                <p className="text-xs text-gray-600 mt-0.5">{t("reference_index_subtitle")}</p>
               </div>
               <div className="p-4">
-                <ReferenceIndexDisplay indexType={indexType} legendConfig={legendConfig} />
+                <ReferenceIndexDisplay indexType={indexType} legendConfig={legendConfig} t={t} />
               </div>
             </div>
 
             {/* Statistics if available */}
             {ndviData && ndviData.statistics && (
               <div className="rounded-lg border border-gray-200 bg-white shadow-sm p-4">
-                <h4 className="text-sm font-semibold text-gray-800 mb-3">{indexType} Statistics</h4>
+                <h4 className="text-sm font-semibold text-gray-800 mb-3">{t("crop_analysis_stats_title", { index: indexType })}</h4>
                 <div className="grid grid-cols-2 gap-3">
                   {Object.entries(ndviData.statistics).map(([key, val]) => (
                     <div key={key} className="flex justify-between items-center p-2 bg-gray-50 rounded">
@@ -512,7 +516,7 @@ const VegetationIndexCard = ({ field, onHeatmapReady }) => {
                 {dominantLabel && (
                   <div className="mt-3 pt-3 border-t border-gray-200">
                     <p className="text-xs text-gray-600">
-                      <span className="font-semibold">Dominant Condition:</span> {dominantLabel}
+                      <span className="font-semibold">{t("crop_analysis_dominant")} </span>{dominantLabel}
                     </p>
                   </div>
                 )}
@@ -523,7 +527,7 @@ const VegetationIndexCard = ({ field, onHeatmapReady }) => {
             {ndviData && heatmapUrl && (
               <div className="rounded-lg border border-gray-200 bg-white shadow-sm p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-gray-700">Heatmap Opacity</span>
+                  <span className="text-xs font-semibold text-gray-700">{t("crop_analysis_opacity")}</span>
                   <span className="text-xs font-semibold text-green-600">{Math.round(heatmapOpacity * 100)}%</span>
                 </div>
                 <input
@@ -544,7 +548,7 @@ const VegetationIndexCard = ({ field, onHeatmapReady }) => {
                         : 'bg-gray-100 text-gray-600 border-gray-300'
                     }`}
                   >
-                    {heatmapVisible ? '✓ Visible' : 'Hidden'}
+                    {heatmapVisible ? t("crop_analysis_visible") : t("crop_analysis_hidden")}
                   </button>
                 </div>
               </div>
