@@ -5,6 +5,10 @@ A full-stack precision agriculture app featuring:
 - Backend services (Node/Express) for AI-driven descriptions, PDF report generation, and Sentinel-2 heatmaps.
 - Firebase for auth, Firestore for data, Realtime Database for live soil sensor readings.
 
+
+# Deployment
+- Full Deployment : kisan-mitra-frontend.vercel.app 
+
 ## Contents
 - `frontend/` — React/Vite app (dashboard, analytics, alerts, soil analysis, chat).
 - `backend/` — Express controllers/services (reports, AI descriptions, NDVI/analytics ingestion).
