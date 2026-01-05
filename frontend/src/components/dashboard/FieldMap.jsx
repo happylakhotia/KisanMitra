@@ -121,7 +121,7 @@ const getDescriptionFromColor = (r, g, b, indexType, t) => {
       const distance = colorDistance(r, g, b, rgb.r, rgb.g, rgb.b);
       if (distance < minDistance) {
         minDistance = distance;
-        closestMatch = { key, ...value };
+        closestMatch = { key, ...value, indexType };
       }
     }
   });
@@ -240,6 +240,7 @@ const HeatmapImageOverlay = ({ imageUrl, bounds, polygon, opacity, visible, inde
         if (description) {
           onHoverInfo?.({
             ...description,
+            indexType,
             position: e.containerPoint,
             latlng: e.latlng,
           });
@@ -298,7 +299,18 @@ const FitPolygon = ({ polygon, bounds }) => {
 
 // Tooltip component for hover info
 const HoverTooltip = ({ info }) => {
+  const { t } = useTranslation();
   if (!info) return null;
+
+  const title =
+    info.key && info.indexType
+      ? t(`index_descriptions.${info.indexType}.${info.key}.title`)
+      : info.title;
+
+  const description =
+    info.key && info.indexType
+      ? t(`index_descriptions.${info.indexType}.${info.key}.description`)
+      : info.description;
 
   return (
     <div
@@ -315,9 +327,9 @@ const HoverTooltip = ({ info }) => {
             className="w-4 h-4 rounded-full border border-gray-300"
             style={{ backgroundColor: info.color }}
           />
-          <span className="font-semibold text-gray-800 text-sm">{info.title}</span>
+          <span className="font-semibold text-gray-800 text-sm">{title}</span>
         </div>
-        <p className="text-xs text-gray-600 leading-relaxed">{info.description}</p>
+        <p className="text-xs text-gray-600 leading-relaxed">{description}</p>
       </div>
       {/* Arrow pointer */}
       <div
