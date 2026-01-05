@@ -6,8 +6,11 @@ A full-stack precision agriculture app featuring:
 - Firebase for auth, Firestore for data, Realtime Database for live soil sensor readings.
 
 
-# Deployment
-- Full Deployment : kisan-mitra-frontend.vercel.app 
+## 🌐 Live Links
+
+- **Frontend**: [Kisan Mitra Web App](https://kisan-mitra-frontend.vercel.app)
+- **Backend API**: [Kisan Mitra Backend](https://kisan-mitra-henna.vercel.app)
+
 
 ## Contents
 - `frontend/` — React/Vite app (dashboard, analytics, alerts, soil analysis, chat).
