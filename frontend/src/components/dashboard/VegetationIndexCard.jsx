@@ -7,6 +7,7 @@ import { useAuth } from "../../contexts/authcontext/Authcontext";
 import { db } from "../../firebase/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useTranslation } from "react-i18next";
+import { API_ENDPOINTS } from "../../api/endpoints";
 
 const DEFAULT_CENTER = { lat: 20.5937, lng: 78.9629 }; // India centroid fallback
 
@@ -274,7 +275,7 @@ const VegetationIndexCard = ({ field, onHeatmapReady }) => {
     try {
       console.log(`🚀 Requesting ${type} Analysis...`);
       
-      const response = await fetch("http://localhost:5000/api/analyze-ndvi", {
+      const response = await fetch(API_ENDPOINTS.NDVI.ANALYZE, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 

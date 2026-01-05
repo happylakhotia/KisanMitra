@@ -5,6 +5,7 @@ import { useAuth } from "../contexts/authcontext/Authcontext";
 import { Navigate, useNavigate } from "react-router-dom";
 import { doSignOut } from "../firebase/auth";
 import { useTranslation } from "react-i18next";
+import { API_ENDPOINTS } from "../api/endpoints";
 
 export default function PestScanner() {
   const { currentUser, userLoggedIn } = useAuth();
@@ -48,7 +49,7 @@ export default function PestScanner() {
     formData.append("file", file);
 
     try {
-      const response = await fetch("http://localhost:5000/api/pest/predict", {
+      const response = await fetch(API_ENDPOINTS.PEST.PREDICT, {
         method: "POST",
         body: formData,
       });

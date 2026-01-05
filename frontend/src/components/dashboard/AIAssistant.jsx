@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Sparkles, Loader2 } from 'lucide-react';
+import { API_ENDPOINTS } from '../../api/endpoints';
 
 const AIAssistant = () => {
   const [messages, setMessages] = useState([
@@ -27,7 +28,7 @@ const AIAssistant = () => {
 
   const generateGeminiResponse = async (userMessage) => {
     try {
-      const response = await fetch('http://localhost:5000/api/ai/generate', {
+      const response = await fetch(API_ENDPOINTS.AI.GENERATE, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -5,6 +5,7 @@ import { useAuth } from "../contexts/authcontext/Authcontext";
 import { Navigate, useNavigate } from "react-router-dom";
 import { doSignOut } from "../firebase/auth";
 import { useTranslation } from "react-i18next";
+import { API_ENDPOINTS } from "../api/endpoints";
 
 export default function LiveCheck() {
   const { currentUser, userLoggedIn } = useAuth();
@@ -49,7 +50,7 @@ export default function LiveCheck() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const response = await fetch("http://localhost:5000/api/disease/predict", {
+      const response = await fetch(API_ENDPOINTS.DISEASE.PREDICT, {
         method: "POST",
         body: formData,
       });

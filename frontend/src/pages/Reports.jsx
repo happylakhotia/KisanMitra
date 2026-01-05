@@ -7,6 +7,7 @@ import { doSignOut } from "../firebase/auth";
 import { FileText, Download, Loader2, AlertCircle, CheckCircle } from "lucide-react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase/firebase";
+import { API_ENDPOINTS } from "../api/endpoints";
 
 const Reports = () => {
   const { currentUser, userLoggedIn } = useAuth();
@@ -68,7 +69,7 @@ const Reports = () => {
       // Get Firebase auth token
       const token = await currentUser.getIdToken();
       
-      const response = await fetch("http://localhost:5000/api/report/generate", {
+      const response = await fetch(API_ENDPOINTS.REPORT.GENERATE, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,

@@ -21,6 +21,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import Navbar from "../components/dashboard/Navbar";
 import Sidebar from "../components/dashboard/Sidebar";
 import { doSignOut } from "../firebase/auth";
+import { API_ENDPOINTS } from "../api/endpoints";
 
 import { db } from "../firebase/firebase";
 import { doc, getDoc, collection, query, where, onSnapshot, getDocs } from "firebase/firestore";
@@ -379,7 +380,7 @@ export default function Alerts() {
       
       console.log('Fetching descriptions for alert:', alertId, 'Field:', fieldId, metrics);
       
-      const response = await fetch('http://localhost:5000/api/ai/alert-descriptions', {
+      const response = await fetch(API_ENDPOINTS.AI.ALERT_DESCRIPTIONS, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
