@@ -19,25 +19,38 @@ const app = express();
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
+  "https://kisan-mitra-frontend.vercel.app",
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow Postman, server-to-server, health checks
-      if (!origin) return callback(null, true);
+console.log("🔐 Allowed CORS origins:", allowedOrigins);
 
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
+// CORS configuration
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, Postman, curl, etc.)
+    if (!origin) return callback(null, true);
 
-      console.error("CORS blocked origin:", origin);
-      return callback(new Error("Not allowed by CORS"));
-    },
-    credentials: true,
-  })
-);
+    // Check if origin is in allowed list
+    if (allowedOrigins.includes(origin)) {
+      console.log("✅ CORS allowed for:", origin);
+      return callback(null, true);
+    }
+
+    console.error("❌ CORS blocked origin:", origin);
+    return callback(new Error("Not allowed by CORS"));
+  },
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
+  optionsSuccessStatus: 200 // Some legacy browsers choke on 204
+};
+
+// Apply CORS middleware BEFORE routes
+app.use(cors(corsOptions));
+
+// Explicitly handle OPTIONS requests for all routes
+app.options("*", cors(corsOptions));
 
 /* -------------------- MIDDLEWARE -------------------- */
 app.use(express.json());
