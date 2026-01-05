@@ -1,5 +1,13 @@
-// Get API base URL from environment variable
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+// Get API base URL from environment variable and normalize it
+// Remove trailing slash to prevent double slashes
+const normalizeUrl = (url) => {
+  if (!url) return 'http://localhost:5000';
+  return url.replace(/\/+$/, ''); // Remove all trailing slashes
+};
+
+const API_BASE_URL = normalizeUrl(import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000');
+
+console.log('🌐 API Base URL:', API_BASE_URL);
 
 export const API_ENDPOINTS = {
   AUTH: {
