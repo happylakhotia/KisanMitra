@@ -12,8 +12,10 @@ import { collection, getDocs, doc, setDoc, getDoc, deleteDoc } from "firebase/fi
 import axios from "axios";
 import { useTranslation } from "react-i18next";
 
-const OPENWEATHER_API_KEY = "6af24b4f823c9044d1cbad4c94379de5";
-const OPENWEATHER_BASE_URL = "https://api.openweathermap.org/data/2.5";
+const OPENWEATHER_API_KEY = import.meta.env.VITE_OPENWEATHER_API_KEY;
+const OPENWEATHER_BASE_URL = import.meta.env.VITE_OPENWEATHER_BASE_URL;
+
+
 
 const DashboardLayout = ({ currentUser, onLogout }) => {
   const { t } = useTranslation();
@@ -393,11 +395,11 @@ const DashboardLayout = ({ currentUser, onLogout }) => {
       {/* Light green + glass effect */}
       <div
   className="
-    pt-20 lg:ml-64 p-6 min-h-screen 
+    pt-20 lg:ml-64 px-8 py-6 min-h-screen 
     bg-linear-to-br from-green-50 via-white to-green-100
   "
 >
-        <div className="max-w-screen-2xl mx-auto">
+        <div className="max-w-[1800px] mx-auto">
 
           {/* FIELD SELECTOR DROPDOWN */}
           {loading ? (
@@ -441,17 +443,15 @@ const DashboardLayout = ({ currentUser, onLogout }) => {
 
                         {/* Larger map + larger vegetation card */}
               {selectedField && (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
 
                   {/* BIGGER FIELD MAP */}
-                  <div className="lg:col-span-2">
-                    <div className="h-[600px]">
-                      <FieldMap field={selectedField} heatmapOverlay={heatmapOverlay} />
-                    </div>
+                  <div className="lg:col-span-5 h-[700px]">
+                    <FieldMap field={selectedField} heatmapOverlay={heatmapOverlay} />
                   </div>
 
                   {/* BIGGER VEGETATION INDEX - Matched to Field Map height */}
-                  <div className="h-[600px]">
+                  <div className="lg:col-span-2 h-[700px]">
                     <VegetationIndexCard
                       field={selectedField}
                       onHeatmapReady={setHeatmapOverlay}

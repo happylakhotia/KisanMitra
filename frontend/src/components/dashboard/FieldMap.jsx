@@ -375,7 +375,7 @@ const FieldMap = ({ field, heatmapOverlay }) => {
   }, []);
 
   return (
-    <div className="rounded-2xl border border-gray-200 shadow-md bg-white/70 backdrop-blur-xl">
+    <div className="rounded-2xl border border-gray-200 shadow-md bg-white/70 backdrop-blur-xl flex flex-col h-full">
       <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-white/50 backdrop-blur-md rounded-t-2xl">
         <div className="flex items-center gap-2">
           <MapPin className="h-5 w-5 text-green-600" />
@@ -390,8 +390,8 @@ const FieldMap = ({ field, heatmapOverlay }) => {
         )}
       </div>
 
-      <div className="p-4 space-y-3">
-        <div className="relative h-[500px] rounded-2xl border border-gray-200 shadow-inner bg-gray-100 overflow-hidden">
+      <div className="p-4 space-y-3 flex-1 flex flex-col">
+        <div className="relative flex-1 min-h-0 rounded-2xl border border-gray-200 shadow-inner bg-gray-100 overflow-hidden">
           {!polygonCoords.length && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-4 z-10 bg-white/90">
               <p className="text-gray-700 font-medium text-lg">

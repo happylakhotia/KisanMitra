@@ -93,29 +93,29 @@ const ReferenceIndexDisplay = ({ indexType, legendConfig, t }) => {
 
   if (imageError || !legendConfig) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         {/* Field area in Different zones */}
         <div className="space-y-3">
-          <h5 className="text-sm font-semibold text-gray-800">{t("crop_analysis_zones_title")}</h5>
-          <div className="grid grid-cols-1 gap-2">
+          <h5 className="text-base font-bold text-gray-800">{t("crop_analysis_zones_title")}</h5>
+          <div className="grid grid-cols-1 gap-3">
             {legendConfig.bands.map((band) => (
-              <div key={band.label} className="flex items-center gap-3 p-2 bg-gray-50 rounded border border-gray-200">
+              <div key={band.label} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
                 <div
-                  className="w-12 h-8 rounded border border-gray-300"
+                  className="w-14 h-10 rounded border-2 border-gray-300 flex-shrink-0"
                   style={{ backgroundColor: band.color }}
                 />
-                <span className="text-xs font-medium text-gray-700">{indexType}: {band.label}</span>
+                <span className="text-sm font-semibold text-gray-700">{indexType}: {band.label}</span>
               </div>
             ))}
           </div>
         </div>
 
         {/* Analysis Scale */}
-        <div className="space-y-3">
-          <h5 className="text-sm font-semibold text-gray-800">{t("crop_analysis_scale_title")}</h5>
+        <div className="space-y-4">
+          <h5 className="text-base font-bold text-gray-800">{t("crop_analysis_scale_title")}</h5>
           
           {/* Health Status Icons */}
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-1">
             {(() => {
               const getHealthStatuses = () => {
                 switch (indexType) {
@@ -148,14 +148,14 @@ const ReferenceIndexDisplay = ({ indexType, legendConfig, t }) => {
               return getHealthStatuses().map((status, idx) => {
                 const band = legendConfig.bands[idx];
                 return (
-                  <div key={status.label} className="flex flex-col items-center gap-1 flex-1">
+                  <div key={status.label} className="flex flex-col items-center gap-1.5 flex-1">
                     <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center text-lg border-2 border-gray-300"
+                      className="w-11 h-11 rounded-full flex items-center justify-center text-lg border-2 border-gray-300 shadow-sm"
                       style={{ backgroundColor: status.color, color: 'white' }}
                     >
                       {status.icon}
                     </div>
-                    <span className="text-[10px] text-gray-600 text-center leading-tight">{status.label}</span>
+                    <span className="text-[9px] text-gray-700 text-center leading-tight font-medium">{status.label}</span>
                   </div>
                 );
               });
@@ -163,8 +163,8 @@ const ReferenceIndexDisplay = ({ indexType, legendConfig, t }) => {
           </div>
 
           {/* Scale Bar */}
-          <div className="space-y-1">
-            <div className="h-4 w-full rounded overflow-hidden border border-gray-300 flex">
+          <div className="space-y-2">
+            <div className="h-5 w-full rounded overflow-hidden border-2 border-gray-300 flex shadow-sm">
               {legendConfig.scaleStops.slice(0, -1).map((stop, idx) => {
                 const next = legendConfig.scaleStops[idx + 1];
                 const width = `${Math.max((next.at - stop.at) * 100, 0)}%`;
@@ -176,7 +176,7 @@ const ReferenceIndexDisplay = ({ indexType, legendConfig, t }) => {
                 );
               })}
             </div>
-            <div className="flex justify-between text-[10px] text-gray-500">
+            <div className="flex justify-between text-xs text-gray-700 font-medium px-1">
               <span>0</span>
               {legendConfig.bands.map((band, idx) => {
                 const parts = band.label.split(' to ');
@@ -433,9 +433,9 @@ const VegetationIndexCard = ({ field, onHeatmapReady }) => {
     <div className="rounded-2xl border border-gray-200 shadow-md bg-white/70 backdrop-blur-xl flex flex-col h-full">
       
       {/* Header */}
-      <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-white/50 backdrop-blur-md rounded-t-2xl">
-        <h3 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
-          <Sprout className="h-5 w-5 text-green-600" />
+      <div className="p-5 border-b border-gray-200 flex items-center justify-between bg-white/50 backdrop-blur-md rounded-t-2xl">
+        <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+          <Sprout className="h-6 w-6 text-green-600" />
           {t("crop_analysis_title_with_field", { name: field?.name || t("field_map_default_name") })}
         </h3>
 
@@ -491,10 +491,10 @@ const VegetationIndexCard = ({ field, onHeatmapReady }) => {
         ) : (
           <div className="space-y-4">
             {/* Reference Index Image */}
-            <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
-              <div className="bg-gradient-to-r from-green-50 to-green-100 px-4 py-3 border-b border-gray-200">
-                <h4 className="text-sm font-semibold text-gray-800">{t("reference_index_title", { index: indexType })}</h4>
-                <p className="text-xs text-gray-600 mt-0.5">{t("reference_index_subtitle")}</p>
+            <div className="rounded-lg border-2 border-gray-200 bg-white shadow-sm overflow-hidden">
+              <div className="bg-gradient-to-r from-green-50 to-green-100 px-4 py-3.5 border-b border-gray-200">
+                <h4 className="text-base font-bold text-gray-800">{t("reference_index_title", { index: indexType })}</h4>
+                <p className="text-sm text-gray-600 mt-1">{t("reference_index_subtitle")}</p>
               </div>
               <div className="p-4">
                 <ReferenceIndexDisplay indexType={indexType} legendConfig={legendConfig} t={t} />
@@ -503,20 +503,20 @@ const VegetationIndexCard = ({ field, onHeatmapReady }) => {
 
             {/* Statistics if available */}
             {ndviData && ndviData.statistics && (
-              <div className="rounded-lg border border-gray-200 bg-white shadow-sm p-4">
-                <h4 className="text-sm font-semibold text-gray-800 mb-3">{t("crop_analysis_stats_title", { index: indexType })}</h4>
+              <div className="rounded-lg border-2 border-gray-200 bg-white shadow-sm p-5">
+                <h4 className="text-base font-bold text-gray-800 mb-4">{t("crop_analysis_stats_title", { index: indexType })}</h4>
                 <div className="grid grid-cols-2 gap-3">
                   {Object.entries(ndviData.statistics).map(([key, val]) => (
-                    <div key={key} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                      <span className="text-xs text-gray-700">{key}</span>
-                      <span className="text-xs font-semibold text-green-600">{val}%</span>
+                    <div key={key} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-200">
+                      <span className="text-sm font-medium text-gray-700">{key}</span>
+                      <span className="text-base font-bold text-green-600">{val}%</span>
                     </div>
                   ))}
                 </div>
                 {dominantLabel && (
-                  <div className="mt-3 pt-3 border-t border-gray-200">
-                    <p className="text-xs text-gray-600">
-                      <span className="font-semibold">{t("crop_analysis_dominant")} </span>{dominantLabel}
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <p className="text-sm text-gray-700">
+                      <span className="font-bold">{t("crop_analysis_dominant")} </span>{dominantLabel}
                     </p>
                   </div>
                 )}
@@ -525,10 +525,10 @@ const VegetationIndexCard = ({ field, onHeatmapReady }) => {
 
             {/* Opacity Control */}
             {ndviData && heatmapUrl && (
-              <div className="rounded-lg border border-gray-200 bg-white shadow-sm p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-gray-700">{t("crop_analysis_opacity")}</span>
-                  <span className="text-xs font-semibold text-green-600">{Math.round(heatmapOpacity * 100)}%</span>
+              <div className="rounded-lg border-2 border-gray-200 bg-white shadow-sm p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-bold text-gray-700">{t("crop_analysis_opacity")}</span>
+                  <span className="text-sm font-bold text-green-600">{Math.round(heatmapOpacity * 100)}%</span>
                 </div>
                 <input
                   type="range"

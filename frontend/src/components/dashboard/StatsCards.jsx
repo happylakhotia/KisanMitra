@@ -116,7 +116,7 @@ const StatsCards = ({ field, totalFields = 1, alertsData = { total: 0, highPrior
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       {stats.map((card, i) => {
         const Icon = card.icon;
 
@@ -124,36 +124,36 @@ const StatsCards = ({ field, totalFields = 1, alertsData = { total: 0, highPrior
           <div
             key={i}
             className={`
-              rounded-xl p-6 border transition-all hover:shadow-md
+              rounded-xl p-7 border transition-all hover:shadow-md
               ${card.bg} ${card.border}
             `}
           >
             {/* Header */}
-            <div className="flex items-start justify-between mb-4">
-              <h3 className={`text-sm font-medium ${card.text}`}>
+            <div className="flex items-start justify-between mb-5">
+              <h3 className={`text-sm font-semibold ${card.text}`}>
                 {card.titleKey ? t(card.titleKey) : card.title}
               </h3>
 
-              <div className={`p-2 rounded-lg ${card.iconBg}`}>
-                <Icon className={`w-5 h-5 ${card.text}`} />
+              <div className={`p-2.5 rounded-lg ${card.iconBg}`}>
+                <Icon className={`w-6 h-6 ${card.text}`} />
               </div>
             </div>
 
             {/* Values (exact screenshot styling) */}
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <div
-                className={`text-[1.75rem] font-semibold leading-tight ${card.text}`}
+                className={`text-[2rem] font-bold leading-tight ${card.text}`}
               >
                 {card.value}
               </div>
 
-              <p className={`text-[11px] opacity-60 ${card.text}`}>
+              <p className={`text-xs opacity-60 ${card.text}`}>
                 {card.subtitleKey ? t(card.subtitleKey) : card.subtitle}
               </p>
               
               {/* Show percentage if available */}
               {card.percentage && (
-                <p className={`text-xs font-semibold ${card.text} mt-1`}>
+                <p className={`text-sm font-semibold ${card.text} mt-1`}>
                   {card.percentage}
                 </p>
               )}
