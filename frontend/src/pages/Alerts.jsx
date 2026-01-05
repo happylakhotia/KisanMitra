@@ -428,13 +428,48 @@ export default function Alerts() {
     setError(null);
 
     try {
-      const resp = await fetch(API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lat: latVal, lon: lonVal }),
-      });
+      // Retry logic for HuggingFace cold starts
+      let resp;
+      const maxRetries = 3;
+      
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          console.log(`Attempt ${attempt}/${maxRetries} for LSTM prediction`);
+          
+          // Create abort controller for timeout
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 50000); // 50s timeout
+          
+          resp = await fetch(API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lat: latVal, lon: lonVal }),
+            signal: controller.signal
+          });
+          
+          clearTimeout(timeoutId);
+          
+          if (!resp.ok) {
+            throw new Error(`HTTP ${resp.status}`);
+          }
+          
+          console.log("LSTM API Response status:", resp.status);
+          break; // Success, exit retry loop
+          
+        } catch (err) {
+          console.error(`Attempt ${attempt} failed:`, err.message);
+          
+          if (attempt === maxRetries) {
+            throw new Error(`Failed after ${maxRetries} attempts. The model may be starting up. Please try again in a few seconds.`);
+          }
+          
+          // Wait before retry (exponential backoff)
+          const delay = Math.min(2000 * Math.pow(2, attempt - 1), 5000);
+          console.log(`Waiting ${delay}ms before retry...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
 
-      console.log("LSTM API Response status:", resp.status);
       const result = await resp.json();
       console.log("LSTM API Result:", result);
 

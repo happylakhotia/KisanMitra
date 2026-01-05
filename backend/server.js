@@ -25,21 +25,19 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      console.log("REQUEST ORIGIN:", origin);
-      console.log("ALLOWED:", process.env.FRONTEND_URL);
-
+      // Allow Postman, server-to-server, health checks
       if (!origin) return callback(null, true);
 
-      if (origin === process.env.FRONTEND_URL) {
+      if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
 
-      return callback(null, true); // TEMP: allow all to confirm
+      console.error("CORS blocked origin:", origin);
+      return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
   })
 );
-
 
 /* -------------------- MIDDLEWARE -------------------- */
 app.use(express.json());

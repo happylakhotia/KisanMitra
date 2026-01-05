@@ -110,20 +110,42 @@ export const analyzeNDVI = async (req, res) => {
       }
     );
 
-    // 5. Send to Python AI Backend
+    // 5. Send to Python AI Backend with retry logic
     // Ab hum URL mein Query Parameter use kar rahe hain: ?model_type=ndvi
     const targetApiUrl = `${AI_BASE_URL}/predict?model_type=${modelParam}`;
     
-    console.log(` Sending 5-Band TIFF to AI Model: ${modelParam}...`);
+    console.log(`📡 Sending 5-Band TIFF to AI Model: ${modelParam}...`);
     
     const form = new FormData();
     form.append('file', Buffer.from(sentinelResponse.data), { filename: 'sentinel_5band.tiff' });
 
-    const aiResponse = await axios.post(targetApiUrl, form, {
-      headers: { ...form.getHeaders() }
-    });
-
-    console.log(" Analysis Complete");
+    // Retry logic for HuggingFace cold starts
+    let aiResponse;
+    const maxRetries = 3;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`Attempt ${attempt}/${maxRetries} for ${modelParam} model`);
+        
+        aiResponse = await axios.post(targetApiUrl, form, {
+          headers: { ...form.getHeaders() },
+          timeout: 50000 // 50 second timeout per attempt
+        });
+        
+        console.log("✅ Analysis Complete");
+        break; // Success, exit retry loop
+      } catch (error) {
+        console.error(`❌ Attempt ${attempt} failed:`, error.message);
+        
+        if (attempt === maxRetries) {
+          throw new Error(`Failed after ${maxRetries} attempts: ${error.message}`);
+        }
+        
+        // Exponential backoff before retry
+        const delay = Math.min(2000 * Math.pow(2, attempt - 1), 5000);
+        console.log(`⏳ Waiting ${delay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
     
     // 6. Response to Frontend
     return res.json({
