@@ -439,24 +439,28 @@ const DashboardLayout = ({ currentUser, onLogout }) => {
           {/* PASS SELECTED FIELD */}
           {selectedField && <StatsCards field={selectedField} totalFields={fields.length} alertsData={alertsData} weatherData={weatherData} lstmData={lstmData} />}
 
-          {/* Larger map + larger vegetation card */}
-          {selectedField && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        {/* Larger map + larger vegetation card */}
+              {selectedField && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-            {/* BIGGER FIELD MAP */}
-            <div className="lg:col-span-2">
-              <div className="h-[600px]">
-                  <FieldMap field={selectedField} heatmapOverlay={heatmapOverlay} />
-              </div>
-            </div>
+                  {/* BIGGER FIELD MAP */}
+                  <div className="lg:col-span-2">
+                    <div className="h-[600px]">
+                      <FieldMap field={selectedField} heatmapOverlay={heatmapOverlay} />
+                    </div>
+                  </div>
 
-              {/* BIGGER VEGETATION INDEX - Matched to Field Map height */}
-              <div className="h-[600px]">
-                <VegetationIndexCard field={selectedField} onHeatmapReady={setHeatmapOverlay} />
-            </div>
+                  {/* BIGGER VEGETATION INDEX - Matched to Field Map height */}
+                  <div className="h-[600px]">
+                    <VegetationIndexCard
+                      field={selectedField}
+                      onHeatmapReady={setHeatmapOverlay}
+                    />
+                  </div>
 
-          </div>
-          )}
+                </div>
+              )}
+
 
           <NewsSection selectedField={selectedField} />
         </div>
@@ -479,8 +483,8 @@ const DashboardLayout = ({ currentUser, onLogout }) => {
             <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></div>
           </div>
           <div className="flex flex-col items-start">
-            <span className="font-bold text-base sm:text-lg">Kisan Mitra</span>
-            <span className="text-xs text-white">AI Assistant</span>
+            <span className="font-bold text-base sm:text-lg">{t("kisan_mitra")}</span>
+            <span className="text-xs text-white">{t("ai_assistant")}</span>
           </div>
         </button>
       )}
@@ -505,7 +509,7 @@ const DashboardLayout = ({ currentUser, onLogout }) => {
           <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
             <MessageCircle className="h-5 w-5 text-green-600" />
           </div>
-          <span className="font-bold text-sm sm:text-base">Kisan Mitra</span>
+            <span className="font-bold text-sm sm:text-base">{t("kisan_mitra")}</span>
         </button>
       )}
     </>
