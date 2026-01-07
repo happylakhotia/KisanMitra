@@ -119,33 +119,15 @@ export const analyzeNDVI = async (req, res) => {
     const form = new FormData();
     form.append('file', Buffer.from(sentinelResponse.data), { filename: 'sentinel_5band.tiff' });
 
-    // Retry logic for HuggingFace cold starts
-    let aiResponse;
-    const maxRetries = 3;
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        console.log(`Attempt ${attempt}/${maxRetries} for ${modelParam} model`);
-        
-        aiResponse = await axios.post(targetApiUrl, form, {
-          headers: { ...form.getHeaders() },
-          timeout: 50000 // 50 second timeout per attempt
-        });
-        
-        console.log("✅ Analysis Complete");
-        break; // Success, exit retry loop
-      } catch (error) {
-        console.error(`❌ Attempt ${attempt} failed:`, error.message);
-        
-        if (attempt === maxRetries) {
-          throw new Error(`Failed after ${maxRetries} attempts: ${error.message}`);
-        }
-        
-        // Exponential backoff before retry
-        const delay = Math.min(2000 * Math.pow(2, attempt - 1), 5000);
-        console.log(`⏳ Waiting ${delay}ms before retry...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
+    // Single attempt with timeout suitable for Vercel (Pro: 60s max, Hobby: 10s max)
+    const aiResponse = await axios.post(targetApiUrl, form, {
+      headers: { ...form.getHeaders() },
+      timeout: 55000, // 55 seconds - works on Vercel Pro plan
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity
+    });
+    
+    console.log("✅ Analysis Complete");
     
     // 6. Response to Frontend
     return res.json({
@@ -158,20 +140,43 @@ export const analyzeNDVI = async (req, res) => {
     });
 
   } catch (error) {
+    console.error("❌ NDVI Analysis Error:", error.message);
+    
     let errorMessage = "Processing failed";
-    if (error.response) {
-       // Error handling logic (Same as before)
-       try {
-           const errorData = error.response.data instanceof Buffer ? error.response.data.toString() : JSON.stringify(error.response.data);
-           console.error(" API ERROR:", errorData);
-           errorMessage = `External API Error: ${errorData}`;
-            } catch (e) {
-           errorMessage = "Unknown Binary Error";
-            }
-        } else {
-        console.error(" Code Error:", error.message);
-        errorMessage = error.message;
+    let statusCode = 500;
+    
+    // Check if it's a timeout
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      errorMessage = "AI model is taking too long to respond. It may be cold starting. Please try again in 10-15 seconds.";
+      statusCode = 504;
+    } 
+    // Check if it's a connection error
+    else if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      errorMessage = "Cannot connect to AI model. The Hugging Face Space may be sleeping or unavailable.";
+      statusCode = 503;
     }
-    res.status(500).json({ error: errorMessage });
+    // API response error
+    else if (error.response) {
+      try {
+        const errorData = error.response.data instanceof Buffer 
+          ? error.response.data.toString() 
+          : JSON.stringify(error.response.data);
+        console.error("API ERROR:", errorData);
+        errorMessage = `External API Error: ${errorData}`;
+      } catch (e) {
+        errorMessage = "Unknown API Error";
+      }
+    } 
+    // Generic error
+    else {
+      console.error("Code Error:", error.message);
+      errorMessage = error.message;
+    }
+    
+    res.status(statusCode).json({ 
+      error: errorMessage,
+      code: error.code,
+      suggestion: "If this persists, the Hugging Face model may need to be restarted or updated."
+    });
   }
 };

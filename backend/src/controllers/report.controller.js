@@ -125,7 +125,12 @@ async function fetchHeatmap(lat, lng, indexType, radius) {
 
     const form = new FormData();
     form.append('file', Buffer.from(sentinelResponse.data), { filename: 'sentinel_5band.tiff' });
-    const aiResponse = await axios.post(`${AI_BASE_URL}/predict?model_type=${indexType.toLowerCase()}`, form, { headers: { ...form.getHeaders() } });
+    const aiResponse = await axios.post(`${AI_BASE_URL}/predict?model_type=${indexType.toLowerCase()}`, form, { 
+      headers: { ...form.getHeaders() },
+      timeout: 55000, // 55 seconds for Vercel Pro
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity
+    });
 
     return { success: true, heatmap_base64: aiResponse.data.heatmap_base64, statistics: aiResponse.data.statistics };
   } catch (error) {
@@ -158,6 +163,10 @@ export const generateReport = async (req, res) => {
     try {
       const resp = await axios.post(process.env.HF_ANALYTICS_DATA_URL || "https://happy-1234-collectdata-happy.hf.space/generate_data", {
         lat: fieldLat, lon: fieldLng, field_name: selectedField.fieldName || "Field_1"
+      }, {
+        timeout: 55000, // 55 seconds for Vercel Pro
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity
       });
       analyticsData = resp.data;
     } catch (e) { console.error("Analytics fetch error:", e.message); }
