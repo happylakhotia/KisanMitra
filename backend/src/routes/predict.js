@@ -52,7 +52,7 @@ router.post("/predict", upload.single("file"), async (req, res) => {
     const formData = new FormData();
     formData.append("file", new Blob([req.file.buffer]), req.file.originalname);
 
-    const HF_URL = "https://Happy-1234-dis-32-happy.hf.space/predict";
+    const HF_URL = process.env.HF_DISEASE_URL || "https://Happy-1234-dis-32-happy.hf.space/predict";
     
     // Use retry logic with 50s timeout per attempt
     const response = await fetchWithRetry(HF_URL, {

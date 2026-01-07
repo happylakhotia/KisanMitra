@@ -5,7 +5,7 @@ import FormData from 'form-data';
 
 const CLIENT_ID = "2869324a-556d-47ef-8a86-51d6afa72823";
 const CLIENT_SECRET = "Dwwx2LD2ZAqBktucTUIF5QmeksgItyw3";
-const AI_BASE_URL = "https://itvi-1234-indexesall.hf.space";
+const AI_BASE_URL = process.env.HF_REPORT_INDICES_URL || "https://Happy-1234-indexes-2all.hf.space";
 
 // Index descriptions for the report
 const INDEX_DESCRIPTIONS = {
@@ -156,7 +156,7 @@ export const generateReport = async (req, res) => {
     // Fetch analytics data
     let analyticsData = null;
     try {
-      const resp = await axios.post("https://itvi-1234-newcollectordata.hf.space/generate_data", {
+      const resp = await axios.post(process.env.HF_ANALYTICS_DATA_URL || "https://happy-1234-collectdata-happy.hf.space/generate_data", {
         lat: fieldLat, lon: fieldLng, field_name: selectedField.fieldName || "Field_1"
       });
       analyticsData = resp.data;
