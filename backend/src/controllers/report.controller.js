@@ -102,15 +102,43 @@ function getBBox(lat, lng, radiusKm) {
 async function fetchHeatmap(lat, lng, indexType, radius) {
   try {
     const token = await getSentinelToken();
-    const evalscript = `//VERSION=3
-      function setup() { return { input: [{ bands: ["B02", "B03", "B04", "B05", "B08"], units: "DN" }], output: { bands: 5, sampleType: "UINT16" } }; }
-      function evaluatePixel(sample) { return [sample.B02, sample.B03, sample.B04, sample.B05, sample.B08]; }`;
+    
+    // UPDATED EVALSCRIPT - Now fetches 6 bands (includes B11 for SAVI)
+    // Must match the evalscript in ndvi.controller.js
+    const evalscript = `
+      //VERSION=3
+      function setup() {
+        return {
+          input: [{ 
+            bands: ["B02", "B03", "B04", "B05", "B08", "B11"], 
+            units: "DN" 
+          }],
+          output: { 
+            bands: 6, 
+            sampleType: "UINT16" 
+          }
+        };
+      }
+
+      function evaluatePixel(sample) { 
+        // Index 0: Blue (B02)
+        // Index 1: Green (B03)
+        // Index 2: Red (B04)
+        // Index 3: Red Edge (B05)
+        // Index 4: NIR (B08)
+        // Index 5: SWIR (B11) - Required for SAVI
+        return [sample.B02, sample.B03, sample.B04, sample.B05, sample.B08, sample.B11]; 
+      }
+    `;
 
     const endDate = new Date();
     const startDate = new Date();
     startDate.setDate(endDate.getDate() - 60);
 
     const bbox = getBBox(lat, lng, radius || 1.0);
+    
+    console.log(`📡 Fetching ${indexType} heatmap for report...`);
+    
     const sentinelResponse = await axios.post('https://services.sentinel-hub.com/api/v1/process', {
       input: {
         bounds: { bbox, properties: { crs: "http://www.opengis.net/def/crs/EPSG/0/4326" } },
@@ -120,11 +148,13 @@ async function fetchHeatmap(lat, lng, indexType, radius) {
       evalscript
     }, {
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Accept': 'image/tiff' },
-      responseType: 'arraybuffer'
+      responseType: 'arraybuffer',
+      timeout: 30000 // 30 second timeout for Sentinel API
     });
 
     const form = new FormData();
-    form.append('file', Buffer.from(sentinelResponse.data), { filename: 'sentinel_5band.tiff' });
+    form.append('file', Buffer.from(sentinelResponse.data), { filename: 'sentinel_6band.tiff' });
+    
     const aiResponse = await axios.post(`${AI_BASE_URL}/predict?model_type=${indexType.toLowerCase()}`, form, { 
       headers: { ...form.getHeaders() },
       timeout: 55000, // 55 seconds for Vercel Pro
@@ -132,9 +162,10 @@ async function fetchHeatmap(lat, lng, indexType, radius) {
       maxBodyLength: Infinity
     });
 
+    console.log(`✅ ${indexType} heatmap fetched successfully`);
     return { success: true, heatmap_base64: aiResponse.data.heatmap_base64, statistics: aiResponse.data.statistics };
   } catch (error) {
-    console.error(`Error fetching ${indexType} heatmap:`, error.message);
+    console.error(`❌ Error fetching ${indexType} heatmap:`, error.message);
     return null;
   }
 }
