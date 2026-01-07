@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import { AuthProvider } from './contexts/authcontext/Authcontext'
 import { SidebarProvider } from './contexts/sidebarcontext/SidebarContext'
 import Landing from './components/landing/Landing'
@@ -23,10 +24,61 @@ import VendorOpportunities from './pages/VendorOpportunities'
 import UserTypeSelection from './components/auth/UserTypeSelection'
 import Chat from './pages/Chat'
 import Reports from './pages/Reports'
+import { API_BASE_URL } from './api/endpoints'
 import './App.css'
 
 
 function App() {
+  // Wake up backend and HuggingFace models on app load to prevent cold starts
+  useEffect(() => {
+    const wakeUpServices = async () => {
+      // 1. Wake up backend
+      try {
+        console.log('🔥 Warming up backend...');
+        const response = await fetch(`${API_BASE_URL}/health`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (response.ok) {
+          console.log('✅ Backend is awake and ready');
+        } else {
+          console.log('⚠️ Backend responded but with error status');
+        }
+      } catch (error) {
+        console.log('⏳ Backend is waking up...', error.message);
+        // Retry once after 2 seconds if first attempt fails
+        setTimeout(async () => {
+          try {
+            await fetch(`${API_BASE_URL}/health`);
+            console.log('✅ Backend is now awake');
+          } catch (e) {
+            console.log('⚠️ Backend warmup retry failed, will wake on first real request');
+          }
+        }, 2000);
+      }
+
+      // 2. Wake up critical HuggingFace Spaces (in background, don't wait)
+      const hfSpaces = [
+        'https://Happy-1234-lstm-happy-2.hf.space',
+        'https://Happy-1234-dis-32-happy.hf.space',
+        'https://Happy-1234-pest-2-happy.hf.space',
+        'https://Happy-1234-indexes-2all.hf.space'
+      ];
+
+      // Wake them up in parallel without blocking
+      hfSpaces.forEach((url, index) => {
+        setTimeout(() => {
+          fetch(url, { method: 'GET' })
+            .then(() => console.log(`✅ HF Space ${index + 1} awake`))
+            .catch(() => console.log(`⏳ HF Space ${index + 1} waking up...`));
+        }, index * 1000); // Stagger by 1 second each to avoid overwhelming
+      });
+    };
+
+    wakeUpServices();
+  }, []);
+
   return (
     <AuthProvider>
       <SidebarProvider>

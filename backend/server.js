@@ -72,6 +72,11 @@ app.get("/", (req, res) => {
   res.json({ message: "AgriVision API is running 🚀" });
 });
 
+// Lightweight health check endpoint for cold start prevention
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
 /* -------------------- ERROR HANDLER -------------------- */
 app.use((err, req, res, next) => {
   console.error(err.message);
