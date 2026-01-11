@@ -338,12 +338,17 @@ export const generateReport = async (req, res) => {
     const getFieldMapImage = async () => {
       try {
         if (!selectedField.coordinates?.length) return null;
+        const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY;
+        if (!googleMapsApiKey) {
+          console.warn("GOOGLE_MAPS_API_KEY not set; skipping field map image in report.");
+          return null;
+        }
         const lats = selectedField.coordinates.map(c => c.lat || c[1]);
         const lngs = selectedField.coordinates.map(c => c.lng || c[0]);
         const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
         const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
         const path = selectedField.coordinates.map(c => `${c.lat || c[1]},${c.lng || c[0]}`).join('|');
-        const mapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${centerLat},${centerLng}&zoom=15&size=600x400&maptype=satellite&path=color:0x00FF00|weight:3|fillcolor:0x00FF0080|${path}&key=AIzaSyDKR_CVLRbV0lqjy_8JRWZAVDdO5Xl7jRk`;
+        const mapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${centerLat},${centerLng}&zoom=15&size=600x400&maptype=satellite&path=color:0x00FF00|weight:3|fillcolor:0x00FF0080|${path}&key=${googleMapsApiKey}`;
         const resp = await axios.get(mapUrl, { responseType: 'arraybuffer' });
         return Buffer.from(resp.data);
       } catch (e) { return null; }
