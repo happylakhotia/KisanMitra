@@ -295,7 +295,7 @@ export default function Alerts() {
   /* ----------------------------------------------------
      2. LSTM API + convert into alert UI format (FULL)
   ---------------------------------------------------- */
-  const API_URL = "https://Happy-1234-lstm-happy-2.hf.space/predict";
+  const API_URL = "https://Happy-1234-lstmnew-happy-2.hf.space/predict";
 
   // small text cleaner
   const clean = (t) => {
