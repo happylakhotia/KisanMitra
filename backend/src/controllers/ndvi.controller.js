@@ -1,12 +1,17 @@
 import axios from 'axios';
 import FormData from 'form-data';
 
-const CLIENT_ID = "9bf46563-3144-48d1-9f49-17894b739ff7";
-const CLIENT_SECRET = "UDfqaQnpJXLzxs4GkCN0iH3kFSWdpifW";
+const CLIENT_ID = process.env.SENTINEL_CLIENT_ID;
+const CLIENT_SECRET = process.env.SENTINEL_CLIENT_SECRET;
 const AI_BASE_URL = process.env.HF_NDVI_URL || "https://Happy-1234-indexes-2all.hf.space"; 
 
 // Helper: Auth Token Lena
 async function getSentinelToken() {
+  if (!CLIENT_ID || !CLIENT_SECRET) {
+    throw new Error(
+      "Missing Sentinel Hub credentials. Set SENTINEL_CLIENT_ID and SENTINEL_CLIENT_SECRET in backend/.env"
+    );
+  }
   const params = new URLSearchParams();
   params.append('grant_type', 'client_credentials');
   params.append('client_id', CLIENT_ID);
