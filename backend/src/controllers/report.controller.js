@@ -3,8 +3,8 @@ import { db } from '../config/firebase.js';
 import axios from 'axios';
 import FormData from 'form-data';
 
-const CLIENT_ID = "2869324a-556d-47ef-8a86-51d6afa72823";
-const CLIENT_SECRET = "Dwwx2LD2ZAqBktucTUIF5QmeksgItyw3";
+const CLIENT_ID = "process.env.SENTINEL_CLIENT_ID";
+const CLIENT_SECRET = "process.env.SENTINEL_CLIENT_SECRET";
 const AI_BASE_URL = process.env.HF_REPORT_INDICES_URL || "https://Happy-1234-indexes-2all.hf.space";
 
 // Index descriptions for the report
