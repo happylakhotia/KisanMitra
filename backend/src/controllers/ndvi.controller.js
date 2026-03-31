@@ -1,8 +1,8 @@
 import axios from 'axios';
 import FormData from 'form-data';
 
-const CLIENT_ID = cd7876b1-83b3-40b3-9432-917ec298d741;
-const CLIENT_SECRET = PLAKb20cd9cd7139471590ba9c6eef762f25;
+const CLIENT_ID = process.env.SENTINEL_CLIENT_ID;
+const CLIENT_SECRET = process.env.SENTINEL_CLIENT_SECRET;
 const AI_BASE_URL = process.env.HF_NDVI_URL || "https://Happy-1234-indexes-2all.hf.space"; 
 
 // Helper: Auth Token Lena
